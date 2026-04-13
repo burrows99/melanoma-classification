@@ -4,19 +4,30 @@ import torch
 
 
 class Config:
+    _overrides: dict = {}
 
-    @staticmethod
-    def get_model_config():
-        return {
+    @classmethod
+    def override(cls, **kwargs) -> None:
+        """Apply runtime overrides; called once from main.py before any config is read."""
+        cls._overrides.update(kwargs)
+
+    @classmethod
+    def _merge(cls, base: dict) -> dict:
+        """Return base dict with any matching overrides applied."""
+        return {**base, **{k: cls._overrides[k] for k in base if k in cls._overrides}}
+
+    @classmethod
+    def get_model_config(cls):
+        return cls._merge({
             'architecture' : 'efficientnet_b0',
             'num_classes' : 1,
             'image_size' : 256,
             'num_metadata_features' : 14,
-        }
+        })
 
-    @staticmethod
-    def get_training_config():
-        return {
+    @classmethod
+    def get_training_config(cls):
+        return cls._merge({
             'learning_rate' : 1e-4,
             'batch_size' : 32,
             'num_epochs' : 20,
@@ -24,7 +35,7 @@ class Config:
             'random_seed' : 42,
             'num_workers' : 4,
             'device' : 'cuda' if torch.cuda.is_available() else 'cpu',
-        }
+        })
 
     @staticmethod
     def get_metadata_config():
@@ -40,12 +51,12 @@ class Config:
             },
         }
 
-    @staticmethod
-    def get_paths_config():
-        return {
+    @classmethod
+    def get_paths_config(cls):
+        return cls._merge({
             'train_data_dir':    r"E:\APML\Datasets\Melanoma_external_256\train",
             'train_labels_path': r"E:\APML\Datasets\Melanoma_external_256\train_concat.csv",
-        }
+        })
 
     @staticmethod
     def get_loss_config():
@@ -75,11 +86,11 @@ class Config:
             },
         }
 
-    @staticmethod
-    def get_evaluation_config():
-        return {
+    @classmethod
+    def get_evaluation_config(cls):
+        return cls._merge({
             'tta_enabled': False,  # Set to True to enable TTA during evaluation
-        }
+        })
 
 
 

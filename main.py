@@ -1,0 +1,70 @@
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+from config import Config  # noqa: E402  (after sys.path patch)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Melanoma classification — train a model or launch the Gradio app.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--train", action="store_true", help="Run training loop")
+    mode.add_argument("--app",   action="store_true", help="Launch Gradio inference app")
+
+    # --- Model config overrides ---
+    parser.add_argument("--architecture", type=str,
+                        help="Backbone: efficientnet_b0 | densenet121 | resnet50")
+    parser.add_argument("--image-size", type=int, dest="image_size",
+                        help="Input image size (square)")
+
+    # --- Training config overrides ---
+    parser.add_argument("--lr", type=float, dest="learning_rate",
+                        help="Learning rate")
+    parser.add_argument("--batch-size", type=int, dest="batch_size")
+    parser.add_argument("--epochs", type=int, dest="num_epochs")
+    parser.add_argument("--device", type=str,
+                        help="Compute device, e.g. cuda or cpu")
+    parser.add_argument("--num-workers", type=int, dest="num_workers")
+
+    # --- Paths config overrides ---
+    parser.add_argument("--data-dir", type=str, dest="train_data_dir",
+                        help="Directory containing training images")
+    parser.add_argument("--labels-csv", type=str, dest="train_labels_path",
+                        help="Path to training labels CSV")
+
+    # --- Evaluation config overrides ---
+    parser.add_argument("--tta", action="store_true", default=None, dest="tta_enabled",
+                        help="Enable test-time augmentation during evaluation")
+
+    # --- App-only options ---
+    parser.add_argument("--share", action="store_true",
+                        help="Create a public Gradio share link (--app only)")
+
+    return parser
+
+
+def main() -> None:
+    args = _build_parser().parse_args()
+
+    # Build overrides: only keys with non-None values that aren't mode/share flags
+    _mode_keys = {"train", "app", "share"}
+    overrides = {k: v for k, v in vars(args).items() if k not in _mode_keys and v is not None}
+    if overrides:
+        Config.override(**overrides)
+
+    if args.train:
+        from train import Trainer
+        Trainer().train()
+    else:
+        from app import App
+        App().launch(share=args.share)
+
+
+if __name__ == "__main__":
+    main()
