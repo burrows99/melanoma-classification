@@ -120,6 +120,8 @@ class Trainer:
                 print(f"New best model saved: {best_path}  (Val F1: {best_val_f1:.4f})")
 
         if best_path:
+            self._io.save_gradcam_checkpoint(self._model)
+            print(f"Inference checkpoint saved: {self._io.gradcam_checkpoint_path()}")
             self._final_evaluation(best_path)
         else:
             print("Warning: No best model saved; skipping final plots.")

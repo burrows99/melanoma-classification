@@ -45,6 +45,18 @@ class FileIOManager:
         """Factory: return a manager bound to *model_name*."""
         return cls(model_name)
 
+    @classmethod
+    def list_available_models(cls) -> list[str]:
+        """Return model names that have a fitted preprocessor under output/."""
+        root = cls._OUTPUT_ROOT
+        if not root.exists():
+            return []
+        return sorted(
+            d.name
+            for d in root.iterdir()
+            if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._PREPROCESSOR_FILENAME).exists()
+        )
+
     # ------------------------------------------------------------------ #
     # Path constructors                                                    #
     # ------------------------------------------------------------------ #
@@ -98,6 +110,12 @@ class FileIOManager:
         torch.save(model.state_dict(), path)
         return path
 
+    def save_gradcam_checkpoint(self, model: nn.Module) -> Path:
+        """Save model state dict as the stable gradcam.pth inference pointer."""
+        path = self.gradcam_checkpoint_path()
+        torch.save(model.state_dict(), path)
+        return path
+
     def load_checkpoint(self, model: nn.Module, path: Path | str,
                         map_location: str | torch.device | None = None) -> nn.Module:
         """Load state dict into *model* in-place and return it."""
@@ -105,10 +123,23 @@ class FileIOManager:
         model.load_state_dict(state)
         return model
 
+    def best_available_checkpoint(self) -> Path:
+        """Return gradcam.pth if it exists, else the most-recently-modified .pth (excluding preprocessor)."""
+        gradcam = self.gradcam_checkpoint_path()
+        if gradcam.exists():
+            return gradcam
+        candidates = [
+            p for p in self._weights.glob('*.pth')
+            if p.name != self._GRADCAM_FILENAME
+        ]
+        if not candidates:
+            raise FileNotFoundError(f"No checkpoint found in {self._weights}")
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
     def load_gradcam_checkpoint(self, model: nn.Module,
                                 map_location: str | torch.device | None = None) -> nn.Module:
-        """Load the fixed GradCAM checkpoint into *model* in-place."""
-        return self.load_checkpoint(model, self.gradcam_checkpoint_path(), map_location=map_location)
+        """Load the best available checkpoint into *model* in-place."""
+        return self.load_checkpoint(model, self.best_available_checkpoint(), map_location=map_location)
 
     # ------------------------------------------------------------------ #
     # Metrics I/O                                                          #

@@ -1,3 +1,4 @@
+import traceback
 import torch
 import numpy as np
 import pandas as pd
@@ -17,57 +18,53 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 
 class App:
     def __init__(self):
-        self._device    = Config.get_training_config()['device']
-        self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
-        self._transform = Transform(train=False)
+        self._device        = Config.get_training_config()['device']
+        self._transform     = Transform(train=False)
+        self._io            : FileIOManager | None            = None
+        self._preprocessor  : Any                            = None
+        self._model         : MetadataMelanomaModel | None   = None
+        self._target_layers : dict                           = {}
+        self._model_name    : str | None                     = None
 
+    def load_model(self, model_name: str) -> str:
+        """Load preprocessor + model for *model_name*; return status text."""
         try:
-            self._preprocessor = self._io.load_preprocessor()
-            print(f"Preprocessor loaded from {self._io.preprocessor_path()}")
-        except Exception as e:
-            raise RuntimeError(
-                f"Could not load preprocessor from {self._io.preprocessor_path()}. "
-                "Run --train first."
-            ) from e
+            io           = FileIOManager.for_run(model_name)
+            preprocessor = io.load_preprocessor()
+            model        = MetadataMelanomaModel.build(
+                num_metadata_features=preprocessor.num_output_features
+            )
+            io.load_gradcam_checkpoint(model, map_location=self._device)
+            model.to(self._device).eval()
 
-        self._model = MetadataMelanomaModel.build(
-            num_metadata_features=self._preprocessor.num_output_features
-        )
-        try:
-            self._io.load_gradcam_checkpoint(self._model, map_location=self._device)
-            print(f"Model loaded from {self._io.gradcam_checkpoint_path()}")
+            self._io            = io
+            self._preprocessor  = preprocessor
+            self._model         = model
+            self._model_name    = model_name
+            self._target_layers = self._get_target_layers()
+            print(f"Model '{model_name}' loaded successfully.")
+            return f"Model '{model_name}' loaded successfully."
         except Exception as e:
-            print(f"Error loading model: {e}")
-        self._model.to(self._device).eval()
-
-        self._target_layers = self._get_target_layers()
+            traceback.print_exc()
+            return f"Error loading '{model_name}': {e}"
 
     def _get_target_layers(self) -> dict:
-        backbone = self._model.image_backbone
+        assert self._model is not None
+        bb = self._model.image_backbone
         layers: dict = {}
-
-        if hasattr(backbone, 'conv_head'):
-            layers['conv_head'] = backbone.conv_head
-
-        if hasattr(backbone, 'blocks'):
-            if len(backbone.blocks) >= 3:
-                idx = len(backbone.blocks) - 3
-                if hasattr(backbone.blocks[idx], 'conv_pwl'):
-                    layers['blocks[-3].conv_pwl'] = backbone.blocks[idx].conv_pwl
-            if len(backbone.blocks) >= 2:
-                mid = len(backbone.blocks) // 2
-                if hasattr(backbone.blocks[mid], 'conv_pwl'):
-                    layers[f'blocks[{mid}].conv_pwl'] = backbone.blocks[mid].conv_pwl
-
+        if hasattr(bb, 'conv_head'):
+            layers['conv_head'] = bb.conv_head
+        if hasattr(bb, 'blocks'):
+            n = len(bb.blocks)
+            for label, idx in [('blocks[-3].conv_pwl', n - 3), (f'blocks[{n // 2}].conv_pwl', n // 2)]:
+                if idx >= 0 and hasattr(bb.blocks[idx], 'conv_pwl'):
+                    layers[label] = bb.blocks[idx].conv_pwl
         if not layers:
-            for name, module in reversed(list(backbone.named_modules())):
-                if isinstance(module, torch.nn.Conv2d):
-                    layers[name] = module
+            for name, mod in reversed(list(bb.named_modules())):
+                if isinstance(mod, torch.nn.Conv2d):
+                    layers[name] = mod
                     break
-
-        print(f"Found {len(layers)} target layers for Grad-CAM:")
-        for name in layers:
-            print(f"  - {name}")
+        print(f"CAM layers: {list(layers)}")
         return layers
 
     def _prepare_metadata(self, age=None, sex=None, site=None) -> torch.Tensor:
@@ -80,10 +77,12 @@ class App:
         arr = self._preprocessor.transform(pd.DataFrame([row]))
         return torch.tensor(arr, dtype=torch.float32).to(self._device)
 
-    def predict_and_visualize(self, img, age=None, sex='male', site='torso',
-                              target_layer_name='blocks[-3].conv_pwl'):
+    def predict_and_visualize(self, img, age=None, sex='male', site='torso'):
         if img is None:
-            return "Please upload an image", None, None
+            return "Please upload an image", None
+
+        if self._model is None:
+            return "No model loaded. Select a model from the dropdown.", None
 
         try:
             img_rgb, img_resized, img_tensor = self._preprocess_image(img)
@@ -91,15 +90,15 @@ class App:
             prediction_text = self._run_tta(img_rgb, metadata_tensor)
 
             if prediction_text is None:
-                return "Error: TTA failed for all augmentations.", None, None
+                return "Error: TTA failed for all augmentations.", None
 
-            cam_image, side_by_side = self._run_eigencam(img_resized, img_tensor, target_layer_name)
-            return prediction_text, cam_image, side_by_side
+            default_layer = self._target_layers.get('blocks[-3].conv_pwl') and 'blocks[-3].conv_pwl' or next(iter(self._target_layers))
+            _, side_by_side = self._run_eigencam(img_resized, img_tensor, default_layer)
+            return prediction_text, side_by_side
 
         except Exception:
-            import traceback
             traceback.print_exc()
-            return "Error", None, None
+            return "Error", None
 
     def _preprocess_image(self, img) -> tuple:
         img_rgb     = img.convert('RGB')
@@ -109,6 +108,7 @@ class App:
         return img_rgb, img_resized, img_tensor
 
     def _run_tta(self, img_rgb, metadata_tensor) -> str | None:
+        assert self._model is not None
         probs: list[float] = []
         print(f"Starting TTA with {len(Transform.tta_transforms)} augmentations...")
         for aug_name, tta_fn in Transform.tta_transforms.items():
@@ -126,91 +126,96 @@ class App:
 
         final_prob = float(np.mean(probs))
         print(f"TTA averaged probability: {final_prob:.4f} over {len(probs)} augmentations")
-        return f"Melanoma probability (TTA): {final_prob:.4f}"
+        benign = (1 - final_prob) * 100
+        malignant = final_prob * 100
+        return f"Benign:     {benign:.1f}%\nMalignant:  {malignant:.1f}%"
 
     def _run_eigencam(self, img_resized, img_tensor, target_layer_name: str) -> tuple:
+        assert self._model is not None
         if target_layer_name not in self._target_layers:
-            target_layer_name = list(self._target_layers.keys())[0]
+            target_layer_name = next(iter(self._target_layers))
             print(f"Layer not found; falling back to '{target_layer_name}'")
-        target_layer = self._target_layers[target_layer_name]
-
         try:
-            cam          = EigenCAM(model=self._model.image_backbone, target_layers=[target_layer])
-            targets      = [ClassifierOutputTarget(0)]
-            grayscale    = cam(input_tensor=img_tensor, targets=cast(Any, targets))[0]
-            grayscale    = self._normalize_cam(grayscale)
-            cam_image    = self._overlay_heatmap(img_resized, grayscale)
-            side_by_side = np.hstack((np.array(img_resized), cam_image))
-            return cam_image, side_by_side
+            cam       = EigenCAM(model=self._model.image_backbone, target_layers=[self._target_layers[target_layer_name]])
+            grayscale = cam(input_tensor=img_tensor, targets=cast(Any, [ClassifierOutputTarget(0)]))[0]
+            lo, hi    = grayscale.min(), grayscale.max()
+            grayscale = (grayscale - lo) / (hi - lo) if hi != lo else grayscale
+            rgb_f     = np.array(img_resized).astype(np.float32) / 255.0
+            cam_img   = (show_cam_on_image(rgb_f, grayscale, use_rgb=True, colormap=cv2.COLORMAP_JET, image_weight=0.5) * 255).astype(np.uint8)
+            return cam_img, np.hstack((np.array(img_resized), cam_img))
         except Exception:
-            import traceback
             traceback.print_exc()
             return None, None
 
-    @staticmethod
-    def _normalize_cam(cam: np.ndarray) -> np.ndarray:
-        lo, hi = cam.min(), cam.max()
-        if hi != lo:
-            return (cam - lo) / (hi - lo)
-        return cam
-
-    @staticmethod
-    def _overlay_heatmap(img_resized, grayscale_cam: np.ndarray) -> np.ndarray:
-        rgb_float = np.array(img_resized).astype(np.float32) / 255.0
-        overlaid  = show_cam_on_image(
-            rgb_float, grayscale_cam,
-            use_rgb=True, colormap=cv2.COLORMAP_JET, image_weight=0.5,
-        )
-        return (overlaid * 255).astype(np.uint8)
-
 
     def build_interface(self) -> gr.Blocks:
-        layer_choices = list(self._target_layers.keys())
-        default_layer = layer_choices[1] if len(layer_choices) > 1 else layer_choices[0]
+        available_models = FileIOManager.list_available_models()
+        default_model    = available_models[0] if available_models else None
 
-        with gr.Blocks(title="Melanoma Detection Explainability") as iface:
-            gr.Markdown("# Melanoma Detection with Advanced Explainability")
-            gr.Markdown(
-                "Upload a skin lesion image to get a prediction along with a heatmap "
-                "showing which regions influenced the model's decision."
-            )
+        with gr.Blocks(title="Melanoma Detection") as iface:
+            gr.Markdown("## Melanoma Detection")
 
+            # ── Model selection row ──────────────────────────────────────
             with gr.Row():
+                model_dropdown = gr.Dropdown(
+                    label="Model",
+                    choices=available_models,
+                    value=default_model,
+                    scale=2,
+                )
+                model_status = gr.Textbox(
+                    label="Status", interactive=False, scale=5,
+                )
+
+            # ── Main content ─────────────────────────────────────────────
+            with gr.Row():
+
+                # Left: image + metadata
                 with gr.Column(scale=1):
-                    image_input = gr.Image(type="pil", label="Upload Skin Lesion Image")
+                    image_input = gr.Image(type="pil", label="Skin Lesion Image")
 
                     with gr.Group():
-                        gr.Markdown("### Patient Metadata")
+                        gr.Markdown("**Patient Metadata**")
                         age_input  = gr.Number(label="Age", value=50)
                         sex_input  = gr.Dropdown(
                             label="Sex", choices=["male", "female", "unknown"], value="male"
                         )
                         site_input = gr.Dropdown(
                             label="Anatomical Site",
-                            choices=["torso", "lower extremity", "upper extremity", "head/neck",
-                                     "palms/soles", "oral/genital", "anterior torso",
-                                     "posterior torso", "lateral torso", "unknown"],
+                            choices=["torso", "lower extremity", "upper extremity",
+                                     "head/neck", "palms/soles", "oral/genital",
+                                     "anterior torso", "posterior torso",
+                                     "lateral torso", "unknown"],
                             value="torso",
                         )
+                    predict_btn = gr.Button("Analyse", variant="primary")
 
-                    with gr.Group():
-                        gr.Markdown("### Visualization Options")
-                        target_layer_input = gr.Dropdown(
-                            label="Target Layer", choices=layer_choices, value=default_layer,
-                            info="Earlier layers = more spatial detail; later = more semantic",
-                        )
-
-                    predict_btn = gr.Button("Get Prediction", variant="primary")
-
+                # Right: prediction + heatmap
                 with gr.Column(scale=2):
-                    prediction_output  = gr.Textbox(label="Prediction")
-                    gradcam_output     = gr.Image(label="EigenCAM Heatmap")
-                    comparison_output  = gr.Image(label="Original vs. Heatmap")
+                    prediction_output = gr.Textbox(
+                        label="Prediction", lines=2, interactive=False,
+                    )
+                    heatmap_output = gr.Image(
+                        label="Original vs. Heatmap",
+                    )
+
+            # ── Events ───────────────────────────────────────────────────
+            if default_model:
+                iface.load(
+                    fn=lambda m=default_model: self.load_model(m),
+                    outputs=[model_status],
+                )
+
+            model_dropdown.change(
+                fn=self.load_model,
+                inputs=[model_dropdown],
+                outputs=[model_status],
+            )
 
             predict_btn.click(
                 fn=self.predict_and_visualize,
-                inputs=[image_input, age_input, sex_input, site_input, target_layer_input],
-                outputs=[prediction_output, gradcam_output, comparison_output],
+                inputs=[image_input, age_input, sex_input, site_input],
+                outputs=[prediction_output, heatmap_output],
             )
 
         return iface
