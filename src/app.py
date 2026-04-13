@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import pandas as pd
 import cv2
 from PIL import Image
 import gradio as gr
@@ -20,8 +21,17 @@ class App:
         self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
         self._transform = Transform(train=False)
 
+        try:
+            self._preprocessor = self._io.load_preprocessor()
+            print(f"Preprocessor loaded from {self._io.preprocessor_path()}")
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not load preprocessor from {self._io.preprocessor_path()}. "
+                "Run --train first."
+            ) from e
+
         self._model = MetadataMelanomaModel.build(
-            num_metadata_features=Config.get_model_config()['num_metadata_features']
+            num_metadata_features=self._preprocessor.num_output_features
         )
         try:
             self._io.load_gradcam_checkpoint(self._model, map_location=self._device)
@@ -62,30 +72,13 @@ class App:
 
     def _prepare_metadata(self, age=None, sex=None, site=None) -> torch.Tensor:
         defaults = Config.get_metadata_config()['defaults']
-        age  = float(age) if age  is not None else defaults['age_approx']
-        sex  = sex  if sex  else defaults['sex']
-        site = site if site else defaults['anatom_site_general_challenge']
-
-        metadata = torch.zeros(Config.get_model_config()['num_metadata_features'], dtype=torch.float32)
-        metadata[0] = (age - 50.0) / 20.0
-
-        sex = str(sex).lower()
-        if sex == 'male':
-            metadata[1] = 1.0
-        elif sex == 'female':
-            metadata[2] = 1.0
-        else:
-            metadata[3] = 1.0
-
-        site_mapping = {
-            'torso': 4, 'lower extremity': 5, 'upper extremity': 6,
-            'head/neck': 7, 'palms/soles': 8, 'oral/genital': 9,
-            'anterior torso': 10, 'posterior torso': 11, 'lateral torso': 12,
+        row = {
+            'age_approx':                       float(age) if age is not None else defaults['age_approx'],
+            'sex':                              sex  if sex  else defaults['sex'],
+            'anatom_site_general_challenge':    site if site else defaults['anatom_site_general_challenge'],
         }
-        site_key = str(site).lower()
-        metadata[site_mapping.get(site_key, 13)] = 1.0
-
-        return metadata.unsqueeze(0).to(self._device)
+        arr = self._preprocessor.transform(pd.DataFrame([row]))
+        return torch.tensor(arr, dtype=torch.float32).to(self._device)
 
     def predict_and_visualize(self, img, age=None, sex='male', site='torso',
                               target_layer_name='blocks[-3].conv_pwl'):

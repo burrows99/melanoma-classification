@@ -23,6 +23,7 @@ class MelanomaDataLoaders:
         df, image_paths = self._load_dataframe()
         train_df, val_df, train_img_paths, val_img_paths = self._split(df, image_paths)
         preprocessor = self._fit_preprocessor(train_df)
+        self.preprocessor = preprocessor
         self.num_metadata_features = preprocessor.num_output_features
         self._train_dataset = self._build_dataset(train_df, train_img_paths, preprocessor, train=True)
         self._val_dataset   = self._build_dataset(val_df,   val_img_paths,   preprocessor, train=False)

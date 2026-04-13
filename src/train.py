@@ -22,6 +22,7 @@ class Trainer:
         self._optimizer = MetadataMelanomaModel.get_optimizer(self._model)
         self._run_name  = self._build_run_name()
         self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
+        self._io.save_preprocessor(loaders.preprocessor)
 
     def _build_run_name(self) -> str:
         cfg = Config.get_training_config()

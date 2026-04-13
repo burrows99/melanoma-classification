@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 import torch
 import torch.nn as nn
 from pathlib import Path
@@ -25,10 +26,11 @@ class FileIOManager:
     _METRICS_SUBDIR  = "metrics"
     _PLOTS_SUBDIR    = "plots"
 
-    _GRADCAM_FILENAME   = "gradcam.pth"
-    _METRICS_FILENAME   = "metrics_history.json"
-    _ROC_FILENAME       = "roc_curve.png"
-    _CONFUSION_FILENAME = "confusion_matrix.png"
+    _GRADCAM_FILENAME       = "gradcam.pth"
+    _PREPROCESSOR_FILENAME  = "preprocessor.pkl"
+    _METRICS_FILENAME       = "metrics_history.json"
+    _ROC_FILENAME           = "roc_curve.png"
+    _CONFUSION_FILENAME     = "confusion_matrix.png"
 
     def __init__(self, model_name: str) -> None:
         self._root    = self._OUTPUT_ROOT / model_name
@@ -53,6 +55,22 @@ class FileIOManager:
     def gradcam_checkpoint_path(self) -> Path:
         """Fixed GradCAM inference checkpoint path."""
         return self._weights / self._GRADCAM_FILENAME
+
+    def preprocessor_path(self) -> Path:
+        """Fitted MetadataPreprocessor pickle path."""
+        return self._weights / self._PREPROCESSOR_FILENAME
+
+    def save_preprocessor(self, preprocessor) -> Path:
+        """Pickle the fitted MetadataPreprocessor; return the path written."""
+        path = self.preprocessor_path()
+        with open(path, 'wb') as f:
+            pickle.dump(preprocessor, f)
+        return path
+
+    def load_preprocessor(self):
+        """Load and return the fitted MetadataPreprocessor."""
+        with open(self.preprocessor_path(), 'rb') as f:
+            return pickle.load(f)
 
     def metrics_path(self) -> Path:
         """JSON metrics history file path."""
