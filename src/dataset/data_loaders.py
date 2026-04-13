@@ -72,7 +72,7 @@ class MelanomaDataLoaders:
             batch_size=cfg['batch_size'],
             shuffle=True,
             num_workers=cfg['num_workers'],
-            pin_memory=True,
+            pin_memory=cfg['device'] == 'cuda',
             drop_last=True,
         )
 
@@ -83,6 +83,6 @@ class MelanomaDataLoaders:
             batch_size=cfg['batch_size'],
             shuffle=False,
             num_workers=cfg['num_workers'],
-            pin_memory=True,
+            pin_memory=cfg['device'] == 'cuda',
         )
 

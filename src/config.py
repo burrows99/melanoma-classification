@@ -54,8 +54,9 @@ class Config:
     @classmethod
     def get_paths_config(cls):
         return cls._merge({
-            'train_data_dir':    r"E:\APML\Datasets\Melanoma_external_256\train",
-            'train_labels_path': r"E:\APML\Datasets\Melanoma_external_256\train_concat.csv",
+            'train_data_dir':    'dataset/train',
+            'train_labels_path': 'dataset/train_concat.csv',
+            'kaggle_dataset':    'nroman/melanoma-external-malignant-256',
         })
 
     @staticmethod

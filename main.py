@@ -1,10 +1,33 @@
 import argparse
 import sys
 from pathlib import Path
+import kagglehub
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from config import Config  # noqa: E402  (after sys.path patch)
+
+
+def _ensure_dataset() -> None:
+    """Download dataset from Kaggle if dataset/train is absent or empty."""
+    data_dir = Path('dataset/train')
+    csv_path = Path('dataset/train_concat.csv')
+
+    if data_dir.exists() and csv_path.exists() and any(data_dir.iterdir()):
+        return
+
+    print("Dataset not found in CWD — downloading from Kaggle (cached after first run)...")
+    src = Path(kagglehub.dataset_download(Config.get_paths_config()['kaggle_dataset']))
+    # Layout: <src>/train/train/<images>  +  <src>/train_concat.csv
+
+    Path('dataset').mkdir(exist_ok=True)
+
+    if not data_dir.exists():
+        data_dir.symlink_to((src / 'train' / 'train').resolve())
+    if not csv_path.exists():
+        csv_path.symlink_to((src / 'train_concat.csv').resolve())
+
+    print(f"Dataset ready: {len(list(data_dir.iterdir()))} images, CSV at {csv_path}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -59,6 +82,7 @@ def main() -> None:
         Config.override(**overrides)
 
     if args.train:
+        _ensure_dataset()
         from train import Trainer
         Trainer().train()
     else:
