@@ -122,8 +122,4 @@ class Trainer:
             self._final_evaluation(best_path)
         else:
             print("Warning: No best model saved; skipping final plots.")
-
-
-if __name__ == "__main__":
-    Trainer().train()
  

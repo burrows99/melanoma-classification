@@ -224,7 +224,3 @@ class App:
 
     def launch(self, **kwargs) -> None:
         self.build_interface().launch(**kwargs)
-
-
-if __name__ == "__main__":
-    App().launch(share=False)

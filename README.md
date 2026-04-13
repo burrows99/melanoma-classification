@@ -89,6 +89,10 @@ uv run main.py --train \
 # Train with ResNet-50, smaller images, TTA enabled during validation
 uv run main.py --train --architecture resnet50 --image-size 224 --tta
 
+# Smoke test — 1 epoch, large batch, 0 workers: verifies the full pipeline
+# (data loading → forward pass → loss → checkpoint → metrics JSON → plots)
+uv run main.py --train --epochs 1 --batch-size 256 --num-workers 0
+
 # Launch the inference app locally
 uv run main.py --app
 
