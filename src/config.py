@@ -8,21 +8,22 @@ class Config:
     @staticmethod
     def get_model_config():
         return {
-            'architecture': 'efficientnet_b0',
-            'num_classes':  1,
-            'image_size':   256,
+            'architecture' : 'efficientnet_b0',
+            'num_classes' : 1,
+            'image_size' : 256,
+            'num_metadata_features' : 14,
         }
 
     @staticmethod
     def get_training_config():
         return {
-            'learning_rate': 1e-4,
-            'batch_size':    32,
-            'num_epochs':    20,
-            'train_split':   0.8,
-            'random_seed':   42,
-            'num_workers':   4,
-            'device':        'cuda' if torch.cuda.is_available() else 'cpu',
+            'learning_rate' : 1e-4,
+            'batch_size' : 32,
+            'num_epochs' : 20,
+            'train_split' : 0.8,
+            'random_seed' : 42,
+            'num_workers' : 4,
+            'device' : 'cuda' if torch.cuda.is_available() else 'cpu',
         }
 
     @staticmethod
@@ -32,6 +33,11 @@ class Config:
             'metadata_cols':    ['sex', 'age_approx', 'anatom_site_general_challenge'],
             'numerical_cols':   ['age_approx'],
             'categorical_cols': ['sex', 'anatom_site_general_challenge'],
+            'defaults': {
+                'age_approx':                       50.0,
+                'sex':                              'male',
+                'anatom_site_general_challenge':    'torso',
+            },
         }
 
     @staticmethod

@@ -3,7 +3,7 @@ from sklearn.metrics import accuracy_score, recall_score, f1_score
 from tqdm import tqdm
 from config import Config
 from dataset import MelanomaDataLoaders
-from model import get_model, get_criterion, get_optimizer
+from model import MetadataMelanomaModel
 from evaluate import Evaluator
 from file_io_manager import FileIOManager
 
@@ -11,16 +11,15 @@ from file_io_manager import FileIOManager
 class Trainer:
     def __init__(self):
         self._device = Config.get_training_config()['device']
-        self._augment = Config.get_augmentation_config()
 
         loaders = MelanomaDataLoaders()
         self._train_loader = loaders.get_train_loader()
         self._val_loader   = loaders.get_val_loader()
         num_metadata_features = loaders.num_metadata_features
 
-        self._model     = get_model(num_metadata_features=num_metadata_features).to(self._device)
-        self._criterion = get_criterion()
-        self._optimizer = get_optimizer(self._model, learning_rate=Config.get_training_config()['learning_rate'])
+        self._model     = MetadataMelanomaModel.build(num_metadata_features=num_metadata_features)
+        self._criterion = MetadataMelanomaModel.get_criterion()
+        self._optimizer = MetadataMelanomaModel.get_optimizer(self._model)
         self._run_name  = self._build_run_name()
         self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
 
@@ -30,7 +29,7 @@ class Trainer:
             f"{Config.get_model_config()['architecture']}_Meta"
             f"_LR{cfg['learning_rate']}_BS{cfg['batch_size']}_Ep{cfg['num_epochs']}"
         )
-        aug = self._augment
+        aug = Config.get_augmentation_config()
         if 'affine' in aug:
             suffix = "_AffAug"
         elif aug.get('random_erasing_prob', 0) > 0:
@@ -69,11 +68,10 @@ class Trainer:
 
     def _final_evaluation(self, best_model_path: str) -> None:
         print(f"Loading best model for final evaluation plots: {best_model_path}")
-        num_meta = self._model.num_metadata_features
-        final_model = get_model(num_metadata_features=num_meta)
+        final_model = MetadataMelanomaModel.build(num_metadata_features=self._model.num_metadata_features)
         self._io.load_checkpoint(final_model, best_model_path, map_location=self._device)
         final_model = final_model.to(self._device)
-        evaluator = Evaluator(final_model, get_criterion(), io=self._io)
+        evaluator = Evaluator(final_model, MetadataMelanomaModel.get_criterion(), io=self._io)
         _, preds, labels, probs = evaluator.evaluate(
             self._val_loader, use_tta=Config.get_evaluation_config()['tta_enabled']
         )

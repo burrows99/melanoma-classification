@@ -6,7 +6,7 @@ from config import Config
 from file_io_manager import FileIOManager
 from dataset.melanoma_dataset import MelanomaDataset
 from dataset.metadata_preprocessor import MetadataPreprocessor
-from dataset.transforms import get_image_transforms
+from dataset.transform import Transform
 
 
 class MelanomaDataLoaders:
@@ -21,9 +21,6 @@ class MelanomaDataLoaders:
 
     def __init__(self):
         training = Config.get_training_config()
-        self._batch_size  = training['batch_size']
-        self._num_workers = training['num_workers']
-
         df, image_paths = self._load_dataframe()
         train_df, val_df, train_img_paths, val_img_paths = self._split(df, image_paths, training)
         preprocessor = self._fit_preprocessor(train_df)
@@ -65,25 +62,27 @@ class MelanomaDataLoaders:
     def _build_dataset(self, df, img_paths, preprocessor, train: bool):
         return MelanomaDataset(
             img_paths, df['target'].values, preprocessor.transform(df),
-            transform=get_image_transforms(train=train),
+            transform=Transform(train=train),
         )
 
     def get_train_loader(self) -> DataLoader:
+        cfg = Config.get_training_config()
         return DataLoader(
             self._train_dataset,
-            batch_size=self._batch_size,
+            batch_size=cfg['batch_size'],
             shuffle=True,
-            num_workers=self._num_workers,
+            num_workers=cfg['num_workers'],
             pin_memory=True,
             drop_last=True,
         )
 
     def get_val_loader(self) -> DataLoader:
+        cfg = Config.get_training_config()
         return DataLoader(
             self._val_dataset,
-            batch_size=self._batch_size,
+            batch_size=cfg['batch_size'],
             shuffle=False,
-            num_workers=self._num_workers,
+            num_workers=cfg['num_workers'],
             pin_memory=True,
         )
 

@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torchvision.models as tv_models
-from torchvision.ops import MLP
+from torchvision.ops import MLP, sigmoid_focal_loss
+from functools import partial
 from config import Config
 
 
@@ -57,3 +58,28 @@ class MetadataMelanomaModel(nn.Module):
         image_features = self.cnn_dropout(self.image_backbone(image_input))
         metadata_features = self.metadata_mlp(metadata_input)
         return self.final_classifier(torch.cat((image_features, metadata_features), dim=1))
+
+    # ------------------------------------------------------------------ #
+    # Class-level factories                                                #
+    # ------------------------------------------------------------------ #
+    @classmethod
+    def build(cls, num_metadata_features: int) -> "MetadataMelanomaModel":
+        """Instantiate and move model to the configured device."""
+        print(f"Creating model '{Config.get_model_config()['architecture']}' with {num_metadata_features} metadata features.")
+        return cls(num_metadata_features=num_metadata_features).to(Config.get_training_config()['device'])
+
+    @staticmethod
+    def get_criterion():
+        """Focal loss criterion as a partial — handles class imbalance (~13.6% malignant)."""
+        loss_cfg = Config.get_loss_config()
+        return partial(sigmoid_focal_loss,
+                       alpha=loss_cfg['alpha'],
+                       gamma=loss_cfg['gamma'],
+                       reduction=loss_cfg['reduction'])
+
+    @staticmethod
+    def get_optimizer(model: nn.Module, learning_rate: float | None = None) -> torch.optim.Optimizer:
+        return torch.optim.Adam(
+            model.parameters(),
+            lr=learning_rate or Config.get_training_config()['learning_rate'],
+        )

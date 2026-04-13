@@ -11,17 +11,6 @@ from config import Config
 from file_io_manager import FileIOManager
 
 
-# TTA transforms using PIL — Image.Transpose enum avoids deprecated integer constants
-tta_transforms_pil = {
-    'original': lambda img: img,
-    'hflip':   lambda img: img.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
-    'vflip':   lambda img: img.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
-    'rot90':   lambda img: img.rotate(90,  expand=False),
-    'rot180':  lambda img: img.rotate(180, expand=False),
-    'rot270':  lambda img: img.rotate(270, expand=False),
-}
-
-
 class Evaluator:
     def __init__(self, model, criterion, io: FileIOManager | None = None):
         self.model = model
