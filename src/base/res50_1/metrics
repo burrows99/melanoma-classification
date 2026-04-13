@@ -1,0 +1,10 @@
+ResNet50 Training Metrics:
+Training Loss: ~0.0118
+Training Accuracy: ~0.9970
+Training Recall: ~0.9934
+Training F1: ~0.9892
+ResNet50 Validation Metrics:
+Validation Loss: 0.2757
+Validation Accuracy: 0.9625
+Validation Recall: 0.9001
+Validation F1: 0.8669

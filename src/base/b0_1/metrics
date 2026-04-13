@@ -1,0 +1,10 @@
+ Accuracy: 99.70%
+ Recall: 99.34%
+ F1: 98.92%
+ Loss: 0.0118
+
+Validation:
+ Acuracy: 97.24%
+ Recall: 88.64%
+ F1: 89.69%
+ Loss: 0.2757

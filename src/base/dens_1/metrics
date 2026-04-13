@@ -1,0 +1,7 @@
+DenseNet121:
+Train: Loss 0.0201 | Acc 99.53% | Recall 98.56%
+Val:   Loss 0.2401 | Acc 97.10% | Recall 88.93%
+
+EfficientNetB0:
+Train: Loss 0.0118 | Acc 99.70% | Recall 99.34%
+Val:   Loss 0.2757 | Acc 97.24% | Recall 88.64%
