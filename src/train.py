@@ -1,184 +1,131 @@
 import torch
-import numpy as np
-from sklearn.metrics import accuracy_score, recall_score, f1_score # Keep only necessary metrics here
+from sklearn.metrics import accuracy_score, recall_score, f1_score
 from tqdm import tqdm
-import os
-import wandb
-from torch.utils.data import DataLoader
-from config import * # Imports DEVICE, TTA_ENABLED_EVAL, etc.
-from dataset import get_data_loaders # get_image_transforms is used in evaluate.py now
+from config import Config
+from dataset import MelanomaDataLoaders
 from model import get_model, get_criterion, get_optimizer
-# Import functions from the new evaluate.py
-from evaluate import evaluate, plot_roc_curve, plot_confusion_matrix
+from evaluate import Evaluator
+from file_io_manager import FileIOManager
 
-# --- TTA Transformations and val_transforms are now in evaluate.py ---
 
-# --- Training & Evaluation Utilities ---
-def train_epoch(model, train_loader, criterion, optimizer):
-    model.train() # Set model to training mode
-    total_loss = 0.0
-    all_preds = []
-    all_labels = []
-    
-    # Unpack image, metadata, and label
-    for images, metadata, labels in tqdm(train_loader, desc="Training"):
-        images = images.to(DEVICE)
-        metadata = metadata.to(DEVICE) # Move metadata to device
-        labels = labels.to(DEVICE)
-        
-        optimizer.zero_grad()
-        # Pass image and metadata to model
-        outputs = model(images, metadata)
-        loss = criterion(outputs, labels.unsqueeze(1).float()) 
-        loss.backward()
-        optimizer.step()
-        
-        total_loss += loss.detach().item()
-        preds = (torch.sigmoid(outputs.detach()) > 0.5).int()
-        all_preds.extend(preds.cpu().numpy().flatten()) # Flatten in case of shape [N, 1]
-        all_labels.extend(labels.cpu().numpy().flatten())
-    
-    return total_loss / len(train_loader), all_preds, all_labels
+class Trainer:
+    def __init__(self):
+        self._device = Config.get_training_config()['device']
+        self._augment = Config.get_augmentation_config()
 
-# --- Main Training Function ---
-def train_model():
-    # --- Setup ---
-    
-    run_name_suffix = ""
-    # Logic for augmentation part of name (can be kept or simplified)
-    if 'affine' in AUGMENTATION: run_name_suffix += "_AffAug"
-    elif 'random_erasing_prob' in AUGMENTATION and AUGMENTATION['random_erasing_prob'] > 0: run_name_suffix += "_EraseAug"
-    else: run_name_suffix += "_BasicAug"
-    
-    # Base run name without scheduler indication initially
-    base_run_name = f"{MODEL_ARCHITECTURE}_Meta_LR{LEARNING_RATE}_BS{BATCH_SIZE}_Ep{NUM_EPOCHS}"
-    run_name = base_run_name + run_name_suffix
+        loaders = MelanomaDataLoaders()
+        self._train_loader = loaders.get_train_loader()
+        self._val_loader   = loaders.get_val_loader()
+        num_metadata_features = loaders.num_metadata_features
 
-    # --- Initialize Scheduler (IF USED) ---
-    scheduler = None # Default to no scheduler
-    
+        self._model     = get_model(num_metadata_features=num_metadata_features).to(self._device)
+        self._criterion = get_criterion()
+        self._optimizer = get_optimizer(self._model, learning_rate=Config.get_training_config()['learning_rate'])
+        self._run_name  = self._build_run_name()
+        self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
 
-    # --- WandB Initialization ---
-    run = wandb.init(
-        project="melanoma-classification",
-        name=run_name, 
-        config={
-            "architecture": MODEL_ARCHITECTURE + " + Metadata MLP", 
-            "image_size": IMAGE_SIZE,
-            "epochs": NUM_EPOCHS,
-            "batch_size": BATCH_SIZE,
-            "learning_rate": LEARNING_RATE,
-            "optimizer": "Adam",
-            "loss_function": LOSS_FUNCTION_TYPE,
-            "tta_enabled_eval": TTA_ENABLED_EVAL # Log if TTA is used in eval
-            
-        },
-        settings=wandb.Settings(start_method="thread")
-    )
-        
-    train_loader, val_loader, num_metadata_features = get_data_loaders()
-    if "num_metadata_features" not in wandb.config: # Only update if not already set (e.g. by USE_METADATA logic)
-        wandb.config.update({"num_metadata_features": num_metadata_features})
-
-    model = get_model(num_metadata_features=num_metadata_features)
-    model = model.to(DEVICE)
-    
-    criterion = get_criterion()
-    optimizer = get_optimizer(model, learning_rate=LEARNING_RATE) # Use LEARNING_RATE from config as initial
-
-    # --- Training Loop ---
-    best_val_f1 = 0.0 
-    best_model_local_path = None 
-    overall_best_epoch = 0
-    
-    for epoch in range(NUM_EPOCHS):
-        print(f"\nEpoch {epoch+1}/{NUM_EPOCHS}")
-        # Log current LR - if scheduler is None, this will just be the fixed LEARNING_RATE
-        current_lr = optimizer.param_groups[0]['lr'] 
-        print(f"Current Learning Rate: {current_lr}")
-
-        train_loss, train_preds, train_labels = train_epoch(model, train_loader, criterion, optimizer)
-        val_loss, val_preds, val_labels, val_probs = evaluate(model, val_loader, criterion, use_tta=TTA_ENABLED_EVAL)
-        
-        # -- Calculate Metrics --
-        train_acc = accuracy_score(train_labels, train_preds)
-        train_recall = recall_score(train_labels, train_preds)
-        train_f1 = f1_score(train_labels, train_preds)
-        val_acc = accuracy_score(val_labels, val_preds)
-        val_recall = recall_score(val_labels, val_preds)
-        val_f1 = f1_score(val_labels, val_preds)
-        
-        # -- Logging to W&B and Console --
-        log_dict = {
-            "train/loss": train_loss,
-            "train/accuracy": train_acc,
-            "train/recall": train_recall,
-            "train/f1": train_f1,
-            "val/loss": val_loss,
-            "val/accuracy": val_acc,
-            "val/recall": val_recall,
-            "val/f1": val_f1,
-            "learning_rate": current_lr,
-            "epoch": epoch + 1  # Explicitly log the epoch number
-        }
-        wandb.log(log_dict)
-        print(f"Train Metrics: Loss={train_loss:.4f} | Acc={train_acc:.4f} | Recall={train_recall:.4f} | F1={train_f1:.4f}")
-        print(f"Val Metrics:   Loss={val_loss:.4f} | Acc={val_acc:.4f} | Recall={val_recall:.4f} | F1={val_f1:.4f}")
-        
-        # -- Learning Rate Scheduler Step (IF USED) ---
-        # if scheduler is not None:
-        #     scheduler.step(val_loss)
-
-        # -- Save Best Model (based on validation F1) --
-        if val_f1 > best_val_f1:
-            best_val_f1 = val_f1
-            overall_best_epoch = epoch + 1
-            model_name_for_saving = f"result/weights/{run_name}_best_ep{overall_best_epoch}.pth" 
-            os.makedirs('result/weights', exist_ok=True)
-            torch.save(model.state_dict(), model_name_for_saving)
-            print(f"New best model saved: {model_name_for_saving} (Val F1: {best_val_f1:.4f} at epoch {overall_best_epoch})")
-            best_model_local_path = model_name_for_saving
-            wandb.run.summary["best_f1"] = best_val_f1
-            wandb.run.summary["best_epoch"] = overall_best_epoch
-            wandb.run.summary["best_val_loss"] = val_loss
-            wandb.run.summary["best_val_accuracy"] = val_acc
-            wandb.run.summary["best_val_recall"] = val_recall
-            wandb.run.summary["best_train_loss"] = train_loss
-            wandb.run.summary["best_train_accuracy"] = train_acc
-            wandb.run.summary["best_train_f1"] = train_f1
-            wandb.run.summary["best_train_recall"] = train_recall
-
-    # --- Post-Training Operations ---
-    if best_model_local_path:
-        print(f"Logging final best model to W&B artifact: {best_model_local_path} from epoch {overall_best_epoch}")
-        artifact = wandb.Artifact(
-            name=f"model-{run_name}", 
-            type="model",
-            description=f"Best model from run {run_name} with F1={best_val_f1:.4f} at epoch {overall_best_epoch}",
-            metadata=wandb.config.as_dict()
+    def _build_run_name(self) -> str:
+        cfg = Config.get_training_config()
+        base = (
+            f"{Config.get_model_config()['architecture']}_Meta"
+            f"_LR{cfg['learning_rate']}_BS{cfg['batch_size']}_Ep{cfg['num_epochs']}"
         )
-        artifact.add_file(best_model_local_path)
-        run.log_artifact(artifact)
-        
-        print(f"Loading overall best model for final evaluation plots: {best_model_local_path}")
-        final_model = get_model(num_metadata_features=num_metadata_features) 
-        final_model.load_state_dict(torch.load(best_model_local_path))
-        final_model = final_model.to(DEVICE)
-        final_criterion = get_criterion()
-        _, final_val_preds_for_cm, final_val_labels_for_plot, final_val_probs_for_plot = evaluate(
-            final_model, val_loader, final_criterion, use_tta=TTA_ENABLED_EVAL
-        ) 
-        plot_roc_curve(final_val_labels_for_plot, final_val_probs_for_plot)
-        plot_confusion_matrix(final_val_labels_for_plot, final_val_preds_for_cm)
-        wandb.log({
-            "roc_curve": wandb.Image('roc_curve.png'),
-            "confusion_matrix": wandb.Image('confusion_matrix.png')
-        })
-    else:
-        print("Warning: No best model was saved/identified; skipping artifact logging and final plots.")
+        aug = self._augment
+        if 'affine' in aug:
+            suffix = "_AffAug"
+        elif aug.get('random_erasing_prob', 0) > 0:
+            suffix = "_EraseAug"
+        else:
+            suffix = "_BasicAug"
+        return base + suffix
 
-    wandb.finish()
+    def _train_epoch(self) -> tuple:
+        self._model.train()
+        total_loss = 0.0
+        all_preds:  list[int] = []
+        all_labels: list[int] = []
+
+        for images, metadata, labels in tqdm(self._train_loader, desc="Training"):
+            images   = images.to(self._device)
+            metadata = metadata.to(self._device)
+            labels   = labels.to(self._device)
+
+            self._optimizer.zero_grad()
+            outputs = self._model(images, metadata)
+            loss    = self._criterion(outputs, labels.unsqueeze(1).float())
+            loss.backward()
+            self._optimizer.step()
+
+            total_loss += loss.detach().item()
+            preds = (torch.sigmoid(outputs.detach()) > 0.5).int()
+            all_preds.extend(preds.cpu().numpy().flatten())
+            all_labels.extend(labels.cpu().numpy().flatten())
+
+        return total_loss / len(self._train_loader), all_preds, all_labels
+
+    def _save_checkpoint(self, epoch: int) -> str:
+        path = self._io.save_checkpoint(self._model, self._run_name, epoch)
+        return str(path)
+
+    def _final_evaluation(self, best_model_path: str) -> None:
+        print(f"Loading best model for final evaluation plots: {best_model_path}")
+        num_meta = self._model.num_metadata_features
+        final_model = get_model(num_metadata_features=num_meta)
+        self._io.load_checkpoint(final_model, best_model_path, map_location=self._device)
+        final_model = final_model.to(self._device)
+        evaluator = Evaluator(final_model, get_criterion(), io=self._io)
+        _, preds, labels, probs = evaluator.evaluate(
+            self._val_loader, use_tta=Config.get_evaluation_config()['tta_enabled']
+        )
+        evaluator.plot_roc_curve(labels, probs)
+        evaluator.plot_confusion_matrix(labels, preds)
+
+    def train(self) -> None:
+        num_epochs     = Config.get_training_config()['num_epochs']
+        best_val_f1    = 0.0
+        best_path      = None
+        best_epoch     = 0
+
+        for epoch in range(num_epochs):
+            current_lr = self._optimizer.param_groups[0]['lr']
+            print(f"\nEpoch {epoch + 1}/{num_epochs}  |  LR: {current_lr}")
+
+            train_loss, train_preds, train_labels = self._train_epoch()
+            val_loss, val_preds, val_labels, _ = Evaluator(self._model, self._criterion).evaluate(
+                self._val_loader, use_tta=Config.get_evaluation_config()['tta_enabled']
+            )
+
+            train_acc    = accuracy_score(train_labels, train_preds)
+            train_recall = recall_score(train_labels, train_preds)
+            train_f1     = f1_score(train_labels, train_preds)
+            val_acc      = accuracy_score(val_labels, val_preds)
+            val_recall   = recall_score(val_labels, val_preds)
+            val_f1       = f1_score(val_labels, val_preds)
+
+            print(f"Train: Loss={train_loss:.4f} | Acc={train_acc:.4f} | Recall={train_recall:.4f} | F1={train_f1:.4f}")
+            print(f"Val:   Loss={val_loss:.4f} | Acc={val_acc:.4f} | Recall={val_recall:.4f} | F1={val_f1:.4f}")
+
+            self._io.append_epoch_metrics({
+                "epoch": epoch + 1,
+                "learning_rate": current_lr,
+                "train_loss": train_loss, "train_acc": train_acc,
+                "train_recall": train_recall, "train_f1": train_f1,
+                "val_loss": val_loss, "val_acc": val_acc,
+                "val_recall": val_recall, "val_f1": val_f1,
+            })
+
+            if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                best_epoch  = epoch + 1
+                best_path   = self._save_checkpoint(best_epoch)
+                print(f"New best model saved: {best_path}  (Val F1: {best_val_f1:.4f})")
+
+        if best_path:
+            self._final_evaluation(best_path)
+        else:
+            print("Warning: No best model saved; skipping final plots.")
+
 
 if __name__ == "__main__":
-    # TTA_ENABLED_EVAL is imported from config.py and its status will be in wandb logs.
-    train_model() 
+    Trainer().train()
+ 

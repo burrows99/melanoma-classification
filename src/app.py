@@ -2,23 +2,23 @@ import torch
 import numpy as np
 import cv2
 from PIL import Image
-import torchvision.transforms as T
 import gradio as gr
-import pandas as pd
-import math
-import torchvision.transforms.functional as TF
 
 # Import existing model architecture
 from model import get_model
-from config import DEVICE
+from config import Config
+from evaluate import tta_transforms_pil
+from dataset import get_image_transforms
+from file_io_manager import FileIOManager
 
 # GradCAM imports
 from pytorch_grad_cam import EigenCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
+DEVICE = Config.get_training_config()['device']
+
 # Configuration
-CHECKPOINT_PATH = 'result/weights/gradcam.pth' 
 IMAGE_SIZE = 256  
 
 # Metadata defaults (for standalone predictions)
@@ -30,10 +30,11 @@ DEFAULT_METADATA = {
 
 # Create model with the same structure as during training
 NUM_METADATA_FEATURES = 14  # This should match your original model
+_io = FileIOManager.for_run(Config.get_model_config()['architecture'])
 model = get_model(num_metadata_features=NUM_METADATA_FEATURES)
 try:
-    model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=DEVICE))
-    print(f"✓ Model loaded from {CHECKPOINT_PATH}")
+    _io.load_gradcam_checkpoint(model, map_location=DEVICE)
+    print(f"Model loaded from {_io.gradcam_checkpoint_path()}")
 except Exception as e:
     print(f"Error loading model: {e}")
 model.to(DEVICE).eval()
@@ -78,25 +79,12 @@ def get_target_layers(m):
 # Get available target layers
 target_layers = get_target_layers(model)
 
-# --- TTA Transformations ---
-# Define TTA transformations as lambdas for PIL Images
-tta_transforms_pil = {
-    'original': lambda img: img,
-    'hflip': lambda img: img.transpose(Image.FLIP_LEFT_RIGHT),
-    'vflip': lambda img: img.transpose(Image.FLIP_TOP_BOTTOM),
-    'rot90': lambda img: img.rotate(90, expand=True), # expand=True to avoid cropping
-    'rot180': lambda img: img.rotate(180, expand=True),
-    'rot270': lambda img: img.rotate(270, expand=True),
-}
-# Note: Rotation might change aspect ratio if expand=True. If model expects square,
+# --- TTA Transformations — imported from evaluate.py (single definition)
+# tta_transforms_pil is imported above
 
 
-# Set up preprocessing
-transform = T.Compose([
-    T.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-    T.ToTensor(),
-    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+# Set up preprocessing — reuse the same val transform as training/evaluation
+transform = get_image_transforms(train=False)
 
 # Helper to prepare metadata input
 def prepare_metadata(age=None, sex=None, site=None):
