@@ -20,9 +20,8 @@ class MelanomaDataLoaders:
     """
 
     def __init__(self):
-        training = Config.get_training_config()
         df, image_paths = self._load_dataframe()
-        train_df, val_df, train_img_paths, val_img_paths = self._split(df, image_paths, training)
+        train_df, val_df, train_img_paths, val_img_paths = self._split(df, image_paths)
         preprocessor = self._fit_preprocessor(train_df)
         self.num_metadata_features = preprocessor.num_output_features
         self._train_dataset = self._build_dataset(train_df, train_img_paths, preprocessor, train=True)
@@ -41,7 +40,8 @@ class MelanomaDataLoaders:
         ]
         return df, image_paths
 
-    def _split(self, df, image_paths, training):
+    def _split(self, df, image_paths):
+        training = Config.get_training_config()
         indices = list(range(len(df)))
         train_indices, val_indices = train_test_split(
             indices,
