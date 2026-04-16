@@ -81,6 +81,7 @@ def main() -> None:
         format="%(asctime)s  %(name)s  %(levelname)s  %(message)s",
         datefmt="%H:%M:%S",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     args = _build_parser().parse_args()
 
     # Build overrides: only keys with non-None values that aren't mode/share flags
