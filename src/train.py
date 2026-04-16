@@ -1,4 +1,6 @@
+import logging
 import torch
+from pathlib import Path
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 from tqdm import tqdm
 from config import Config
@@ -6,6 +8,8 @@ from dataset import MelanomaDataLoaders
 from model import MetadataMelanomaModel
 from evaluate import Evaluator
 from file_io_manager import FileIOManager
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer:
@@ -68,7 +72,7 @@ class Trainer:
         return str(path)
 
     def _final_evaluation(self, best_model_path: str) -> None:
-        print(f"Loading best model for final evaluation plots: {best_model_path}")
+        logger.info("Loading best model for final evaluation plots: %s", best_model_path)
         final_model = MetadataMelanomaModel.build(num_metadata_features=self._model.num_metadata_features)
         self._io.load_checkpoint(final_model, best_model_path, map_location=self._device)
         final_model = final_model.to(self._device)
@@ -87,7 +91,7 @@ class Trainer:
 
         for epoch in range(num_epochs):
             current_lr = self._optimizer.param_groups[0]['lr']
-            print(f"\nEpoch {epoch + 1}/{num_epochs}  |  LR: {current_lr}")
+            logger.info("Epoch %d/%d  |  LR: %s", epoch + 1, num_epochs, current_lr)
 
             train_loss, train_preds, train_labels = self._train_epoch()
             val_loss, val_preds, val_labels, _ = Evaluator(self._model, self._criterion).evaluate(
@@ -101,8 +105,8 @@ class Trainer:
             val_recall   = recall_score(val_labels, val_preds)
             val_f1       = f1_score(val_labels, val_preds)
 
-            print(f"Train: Loss={train_loss:.4f} | Acc={train_acc:.4f} | Recall={train_recall:.4f} | F1={train_f1:.4f}")
-            print(f"Val:   Loss={val_loss:.4f} | Acc={val_acc:.4f} | Recall={val_recall:.4f} | F1={val_f1:.4f}")
+            logger.info("Train: Loss=%.4f | Acc=%.4f | Recall=%.4f | F1=%.4f", train_loss, train_acc, train_recall, train_f1)
+            logger.info("Val:   Loss=%.4f | Acc=%.4f | Recall=%.4f | F1=%.4f", val_loss, val_acc, val_recall, val_f1)
 
             self._io.append_epoch_metrics({
                 "epoch": epoch + 1,
@@ -115,14 +119,18 @@ class Trainer:
 
             if val_f1 > best_val_f1:
                 best_val_f1 = val_f1
+                prev_path   = best_path
                 best_epoch  = epoch + 1
                 best_path   = self._save_checkpoint(best_epoch)
-                print(f"New best model saved: {best_path}  (Val F1: {best_val_f1:.4f})")
+                if prev_path:
+                    Path(prev_path).unlink(missing_ok=True)
+                    logger.info("Removed previous checkpoint: %s", prev_path)
+                logger.info("New best model saved: %s  (Val F1: %.4f)", best_path, best_val_f1)
 
         if best_path:
             self._io.save_gradcam_checkpoint(self._model)
-            print(f"Inference checkpoint saved: {self._io.gradcam_checkpoint_path()}")
+            logger.info("Inference checkpoint saved: %s", self._io.gradcam_checkpoint_path())
             self._final_evaluation(best_path)
         else:
-            print("Warning: No best model saved; skipping final plots.")
+            logger.warning("No best model saved; skipping final plots.")
  

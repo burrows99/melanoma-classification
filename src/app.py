@@ -1,4 +1,4 @@
-import traceback
+import logging
 import torch
 import numpy as np
 import pandas as pd
@@ -14,6 +14,8 @@ from typing import Any, cast
 from pytorch_grad_cam import EigenCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
+
+logger = logging.getLogger(__name__)
 
 
 class App:
@@ -42,10 +44,10 @@ class App:
             self._model         = model
             self._model_name    = model_name
             self._target_layers = self._get_target_layers()
-            print(f"Model '{model_name}' loaded successfully.")
+            logger.info("Model '%s' loaded successfully.", model_name)
             return f"Model '{model_name}' loaded successfully."
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Error loading '%s'", model_name)
             return f"Error loading '{model_name}': {e}"
 
     def _get_target_layers(self) -> dict:
@@ -64,7 +66,7 @@ class App:
                 if isinstance(mod, torch.nn.Conv2d):
                     layers[name] = mod
                     break
-        print(f"CAM layers: {list(layers)}")
+        logger.info("CAM layers: %s", list(layers))
         return layers
 
     def _prepare_metadata(self, age=None, sex=None, site=None) -> torch.Tensor:
@@ -97,7 +99,7 @@ class App:
             return prediction_text, side_by_side
 
         except Exception:
-            traceback.print_exc()
+            logger.exception("Prediction failed")
             return "Error", None
 
     def _preprocess_image(self, img) -> tuple:
@@ -110,22 +112,22 @@ class App:
     def _run_tta(self, img_rgb, metadata_tensor) -> str | None:
         assert self._model is not None
         probs: list[float] = []
-        print(f"Starting TTA with {len(Transform.tta_transforms)} augmentations...")
+        logger.info("Starting TTA with %d augmentations...", len(Transform.tta_transforms))
         for aug_name, tta_fn in Transform.tta_transforms.items():
             try:
                 aug_tensor = self._transform(tta_fn(img_rgb)).unsqueeze(0).to(self._device)
                 with torch.no_grad():
                     prob = torch.sigmoid(self._model(aug_tensor, metadata_tensor)).item()
                 probs.append(prob)
-                print(f"  TTA - {aug_name}: {prob:.4f}")
+                logger.debug("  TTA - %s: %.4f", aug_name, prob)
             except Exception as e:
-                print(f"  TTA {aug_name} failed: {e}")
+                logger.warning("  TTA %s failed: %s", aug_name, e)
 
         if not probs:
             return None
 
         final_prob = float(np.mean(probs))
-        print(f"TTA averaged probability: {final_prob:.4f} over {len(probs)} augmentations")
+        logger.info("TTA averaged probability: %.4f over %d augmentations", final_prob, len(probs))
         benign = (1 - final_prob) * 100
         malignant = final_prob * 100
         return f"Benign:     {benign:.1f}%\nMalignant:  {malignant:.1f}%"
@@ -134,7 +136,7 @@ class App:
         assert self._model is not None
         if target_layer_name not in self._target_layers:
             target_layer_name = next(iter(self._target_layers))
-            print(f"Layer not found; falling back to '{target_layer_name}'")
+            logger.warning("Layer not found; falling back to '%s'", target_layer_name)
         try:
             cam       = EigenCAM(model=self._model.image_backbone, target_layers=[self._target_layers[target_layer_name]])
             grayscale = cam(input_tensor=img_tensor, targets=cast(Any, [ClassifierOutputTarget(0)]))[0]
@@ -144,7 +146,7 @@ class App:
             cam_img   = (show_cam_on_image(rgb_f, grayscale, use_rgb=True, colormap=cv2.COLORMAP_JET, image_weight=0.5) * 255).astype(np.uint8)
             return cam_img, np.hstack((np.array(img_resized), cam_img))
         except Exception:
-            traceback.print_exc()
+            logger.exception("EigenCAM failed")
             return None, None
 
 

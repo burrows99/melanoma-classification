@@ -1,14 +1,16 @@
+import logging
 import torch
 import numpy as np
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
-from PIL import Image
 import torchvision.transforms.functional as TF
 
 from config import Config
 from file_io_manager import FileIOManager
+
+logger = logging.getLogger(__name__)
 
 
 class Evaluator:
@@ -68,7 +70,7 @@ class Evaluator:
         path = self._io.roc_curve_path() if self._io else FileIOManager.for_run("default").roc_curve_path()
         plt.savefig(path)
         plt.close()
-        print(f"ROC curve saved to {path}")
+        logger.info("ROC curve saved to %s", path)
 
     def plot_confusion_matrix(self, labels, preds):
         cm = confusion_matrix(labels, preds)
@@ -82,4 +84,4 @@ class Evaluator:
         path = self._io.confusion_matrix_path() if self._io else FileIOManager.for_run("default").confusion_matrix_path()
         plt.savefig(path)
         plt.close()
-        print(f"Confusion matrix saved to {path}")
+        logger.info("Confusion matrix saved to %s", path)

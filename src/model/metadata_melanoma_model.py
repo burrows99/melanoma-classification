@@ -1,9 +1,12 @@
+import logging
 import torch
 import torch.nn as nn
 import torchvision.models as tv_models
 from torchvision.ops import MLP, sigmoid_focal_loss
 from functools import partial
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 
 # --- Metadata Fusion Model ---
@@ -65,7 +68,7 @@ class MetadataMelanomaModel(nn.Module):
     @classmethod
     def build(cls, num_metadata_features: int) -> "MetadataMelanomaModel":
         """Instantiate and move model to the configured device."""
-        print(f"Creating model '{Config.get_model_config()['architecture']}' with {num_metadata_features} metadata features.")
+        logger.info("Creating model '%s' with %d metadata features.", Config.get_model_config()['architecture'], num_metadata_features)
         return cls(num_metadata_features=num_metadata_features).to(Config.get_training_config()['device'])
 
     @staticmethod

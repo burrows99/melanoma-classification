@@ -1,7 +1,10 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 import kagglehub
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -16,7 +19,7 @@ def _ensure_dataset() -> None:
     if data_dir.exists() and csv_path.exists() and any(data_dir.iterdir()):
         return
 
-    print("Dataset not found in CWD — downloading from Kaggle (cached after first run)...")
+    logger.info("Dataset not found in CWD — downloading from Kaggle (cached after first run)...")
     src = Path(kagglehub.dataset_download(Config.get_paths_config()['kaggle_dataset']))
     # Layout: <src>/train/train/<images>  +  <src>/train_concat.csv
 
@@ -27,7 +30,7 @@ def _ensure_dataset() -> None:
     if not csv_path.exists():
         csv_path.symlink_to((src / 'train_concat.csv').resolve())
 
-    print(f"Dataset ready: {len(list(data_dir.iterdir()))} images, CSV at {csv_path}")
+    logger.info(f"Dataset ready: {len(list(data_dir.iterdir()))} images, CSV at {csv_path}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -73,6 +76,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(name)s  %(levelname)s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
     args = _build_parser().parse_args()
 
     # Build overrides: only keys with non-None values that aren't mode/share flags
