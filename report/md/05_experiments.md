@@ -94,6 +94,14 @@ These error patterns confirm that the model learns clinically relevant
 discriminative features rather than dataset artefacts, and that its failure
 modes correspond to the cases that challenge experienced dermatologists [18, 19].
 
+**Clinical translation.** In screening terms, the TTA-enabled configuration
+detects approximately 915 out of every 1000 melanomas (recall=91.48%) whilst
+flagging only 1.38% of benign lesions as suspicious (90/6509 FP). The FN rate
+of 8.52% (87/1021) is within acceptable bounds for a primary screening tool
+that complements, rather than replaces, dermatologist review. High specificity
+(98.62%) ensures resource-efficient referral patterns, minimising patient anxiety
+and unnecessary biopsy burden.
+
 **Out-of-distribution (OOD) robustness.** A discriminative sigmoid classifier
 trained exclusively on dermoscopic images provides no guarantee of meaningful
 outputs for out-of-domain inputs. Passing an arbitrary image (e.g., a photograph

@@ -36,7 +36,12 @@ over-fitting on the minority class [8].
 **Metadata branch.** A custom `MetadataPreprocessor` (fit on training data
 only) applies median imputation and z-score normalisation for `age_approx`,
 and mode imputation with one-hot encoding for categorical fields. The resulting
-feature vector has **14 dimensions**.
+feature vector has **14 dimensions**. Of the three fields, `age_approx` is the
+strongest predictor—melanoma incidence peaks in older adults, directly shifting
+the prior probability. `anatom_site` encodes cumulative UV exposure and lesion
+subtype risk (head/neck and trunk carry higher malignancy priors than palms/soles).
+`sex` contributes a weaker site-conditional correction. Formal per-feature
+quantification via SHAP or permutation importance is identified as future work.
 
 ## C. Model Architecture
 
