@@ -24,43 +24,19 @@ validation sets, preserving the positive class ratio in both partitions.
 
 ## B. Data Preprocessing and Augmentation
 
-**Image branch — training.** A two-stage augmentation pipeline is applied.
-First, an Albumentations stage applies: Contrast Limited Adaptive Histogram
-Equalisation (CLAHE, clip limit 2.0, p=0.3) to enhance local contrast;
-stochastic Gaussian or Median blur (p=0.3 combined) to simulate acquisition
-noise; and 90° snap rotations (p=0.5) to exploit the rotational symmetry of
-dermoscopic images. A subsequent torchvision v2 stage applies: resize to
-256×256; random horizontal flip (p=0.5); random vertical flip (p=0.5); random
-affine transformation (rotation ±15°, translation ±6.25%, scale 85–115%);
-colour jitter (brightness ±0.2, contrast ±0.2, saturation ±0.25, hue ±0.083);
-random erasing (p=0.5, scale 0.4–1.6% of image area); and ImageNet normalisation
-(μ=[0.485, 0.456, 0.406], σ=[0.229, 0.224, 0.225]). This augmentation strategy
-reflects best practice established by top ISIC submissions, where heavy
-augmentation is critical to preventing over-fitting on the relatively small
-positive class [8].
+**Image branch — training.** A two-stage augmentation pipeline is applied:
+an Albumentations stage (CLAHE clip-limit 2.0, stochastic Gaussian/Median blur,
+90° snap rotations) followed by a torchvision v2 stage (random horizontal/vertical
+flip, random affine ±15°, colour jitter, random erasing, ImageNet normalisation
+μ=[0.485, 0.456, 0.406]). Heavy augmentation is critical for preventing
+over-fitting on the minority class [8].
 
-**Image branch — validation.** Only resize and ImageNet normalisation are
-applied, ensuring unbiased evaluation.
+**Image branch — validation.** Resize and ImageNet normalisation only.
 
-**Metadata branch.** A custom `MetadataPreprocessor` (fit exclusively on
-training data) applies: median imputation and z-score standardisation for
-`age_approx`; mode-string imputation and one-hot encoding for the two categorical
-fields. Categories unseen in the validation set are silently zeroed, ensuring
-robust out-of-distribution handling. The resulting fixed-length feature vector
-has **14 dimensions**.
-
-**Clinical relevance of metadata features.** Each of the three fields encodes
-clinically meaningful prior information. `age_approx` is the strongest single
-predictor: melanoma incidence rises steeply with age (median diagnosis age ~62
-years), so an older patient age shifts the prior probability upward. `sex` adds
-a weaker but non-zero signal: males have higher incidence on the trunk, while
-females have relatively higher incidence on lower extremities, providing a
-site-conditional correction. `anatom_site_general_challenge` encodes cumulative
-UV exposure: head/neck and trunk lesions carry higher prior malignancy risk than
-palms/soles or oral/genital sites, which are associated with acral and mucosal
-subtypes that have distinct morphological features [7]. Formally quantifying the
-per-feature contribution via permutation importance or SHAP values is identified
-as future work.
+**Metadata branch.** A custom `MetadataPreprocessor` (fit on training data
+only) applies median imputation and z-score normalisation for `age_approx`,
+and mode imputation with one-hot encoding for categorical fields. The resulting
+feature vector has **14 dimensions**.
 
 ## C. Model Architecture
 
@@ -193,19 +169,12 @@ comparison (Section IV-D).
 
 ## F. Evaluation Protocol
 
-Models are evaluated on the held-out validation split using five metrics.
-**Accuracy** measures overall correct classification. **Recall (sensitivity)**
-measures the true positive rate for the malignant class and is the primary
-safety-critical metric: a false negative (missed melanoma) carries a higher
-clinical cost than a false positive. **Specificity** measures the true negative
-rate; high specificity minimises unnecessary referrals. **Positive Predictive
-Value (PPV / precision)** measures confidence in a positive prediction.
-**F1 score** is the harmonic mean of precision and recall. In all tables, both
-best-checkpoint (max validation F1) and final-epoch metrics are reported to
-capture peak performance and training stability separately.
+Models are evaluated on the held-out validation split using accuracy, recall
+(sensitivity), specificity, PPV, and F1. Recall is the primary safety-critical
+metric: a missed melanoma carries a higher clinical cost than a false positive.
+Best-checkpoint (max validation F1) and final-epoch metrics are both reported
+to capture peak performance and training stability.
 
 ---
 
-| | |
-|---|---|
-| [← II. Literature Review](03_literature_review.md) | [Next → IV. Experiments](05_experiments.md) |
+[← II. Literature Review](03_literature_review.md) | [Next → IV. Experiments](05_experiments.md)

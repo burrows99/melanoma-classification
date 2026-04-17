@@ -40,36 +40,22 @@ EfficientNet-B0 as the optimal backbone.
 | **EfficientNet-B0** | 0.8928       | **0.9182**         | **91.48%**| **12.3**      |
 | ResNet-50       | 0.8669           | 0.8669             | 91.57%   | 15.4           |
 
-Hyperparameter optimisation yields a +0.025 F1 gain for EfficientNet-B0 (grid
-search over lr ∈ {1e-5…1e-3}, batch size ∈ {16,32,48}, AdamW weight decay) but
-no improvement for DenseNet-121 or ResNet-50, suggesting those architectures are
-less sensitive to the searched parameters and may benefit from a different
-regularisation strategy (e.g., cosine LR decay).
+EfficientNet-B0 achieves the strongest optimised F1 (0.9182 before TTA;
+0.9134 with comprehensive TTA). DenseNet-121 peaks early and shows no gain from
+hyperparameter tuning; ResNet-50 similarly plateaus and yields the lowest F1.
 
-## C. Training Dynamics and Hyperparameter Search
+## C. Training Dynamics
 
-All three models initialise from a similar starting F1 (~0.71–0.78 at epoch 1),
-reflecting shared ImageNet pretraining. Across 20 epochs:
-
-- **EfficientNet-B0** exhibits the smoothest trajectory. Training loss decreases
-  from 0.0155 (epoch 1) to 0.0055 (epoch 20). The train/val F1 gap remains
-  below 0.02 throughout, confirming negligible over-fitting.
-
-- **DenseNet-121** shows epoch-to-epoch swings of up to 0.10 F1 points (e.g.,
-  0.8969 at epoch 6 vs. 0.7595 at epoch 3). Dense connectivity amplifies
-  gradient signal, producing oscillatory behaviour under a constant learning
-  rate without warm-up or decay.
-
-- **ResNet-50** converges stably but plateaus earliest. Its ~25.6M parameters
-  form an under-regularised regime at batch size 32.
-
-A coarse grid search was conducted over learning rate ∈ {1e-5, 1e-4, 1e-3},
-batch size ∈ {16, 32, 48}, and focal loss γ ∈ {1.5, 2.0, 2.5} using a 10-epoch
-budget per configuration. The search successfully identified EfficientNet-B0's
-optimal settings (lr=1e-4, bs=32, γ=2.0) but the fixed-LR regime contributed to
-DenseNet-121's persistent instability and the recall-optimised configuration's
-volatility (recall range 0.899–0.927 across epochs, Fig. 3). Future work should
-apply cosine annealing or ReduceLROnPlateau to stabilise these architectures.
+All three models initialise from F1 ~0.71–0.78 at epoch 1. **EfficientNet-B0**
+shows the smoothest trajectory: training loss falls from 0.0155 to 0.0055, with
+the train/val F1 gap below 0.02 throughout. **DenseNet-121** shows swings up to
+0.10 F1 points between consecutive epochs due to dense connectivity amplifying
+gradient noise under a fixed learning rate. **ResNet-50** converges stably but
+plateaus earliest. A coarse grid search over lr ∈ {1e-5, 1e-4, 1e-3}, batch
+∈ {16, 32, 48}, and γ ∈ {1.5, 2.0, 2.5} successfully identified EfficientNet-B0's
+optimal settings but the fixed-LR regime contributed to DenseNet-121's
+persistent instability. Cosine annealing is identified as a priority for
+future work.
 
 ## D. TTA Impact
 
@@ -130,22 +116,9 @@ localises to clinically relevant lesion regions:
 - Structural patterns indicative of malignancy such as atypical pigment networks
 
 This alignment between model attention and ABCDE criteria provides important
-validation that the decision-making process corresponds to established
-dermatological expertise rather than spurious background correlations [5].
-
-## H. Contextualisation Against Prior Work
-
-The single-model EfficientNet-B0 result (F1=0.9087, Acc=97.48%) compares
-favourably against top single-model baselines from the ISIC 2018 challenge [6],
-where leading individual models achieved balanced accuracies in the 0.87–0.91
-range on a seven-class problem. It falls short of the ISIC 2020 winning ensemble
-AUC of 0.9490 [8], as expected—that system used 18 EfficientNet variants (B0–B7)
-with comprehensive TTA and external data, far exceeding the single-model 20-epoch
-budget of this work. The results are therefore positioned as strong single-model
-baselines, validating the dual-branch metadata fusion design on its own merits.
+validation that the decision-making process corresponds to dermatological
+expertise rather than spurious background correlations [5].
 
 ---
 
-| | |
-|---|---|
-| [← III. Methodology](04_methodology.md) | [Next → V. Conclusion](06_conclusion_future_work.md) |
+[← III. Methodology](04_methodology.md) | [Next → V. Conclusion](06_conclusion_future_work.md)

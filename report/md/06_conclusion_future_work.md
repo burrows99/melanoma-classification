@@ -2,69 +2,36 @@
 
 ## Conclusion
 
-This paper presented a multi-modal melanoma classification system that fuses
-dermoscopic image features from a pretrained CNN backbone with structured patient
-metadata—age, sex, and anatomical site—under a severely class-imbalanced setting.
-Motivated by the patient-centric design of the ISIC 2020 challenge [7] and the
-explicit demonstration by Rotemberg et al. that contextual clinical metadata
-improves diagnostic discrimination, a dual-branch late-fusion architecture was
-designed, implemented in PyTorch, and systematically evaluated across three
-backbone choices.
-
-EfficientNet-B0 is the best-performing architecture, achieving a validation F1
-of **0.9134**, recall of **91.48%**, and specificity of **98.62%** with TTA
-enabled (F1=0.9076 without TTA), outperforming DenseNet-121 (F1=0.8969) and
-ResNet-50 (F1=0.8669) under the same hyperparameter search. EfficientNet-B0 also
-offers the fastest inference time (12.3 ms vs. 17.8 ms for DenseNet-121 and
-15.4 ms for ResNet-50), making it the most practical choice for real-time
-clinical screening. The metadata branch contributes approximately **2.8%
-improvement in recall** over an image-only baseline (Section IV, Table I), with
-`age_approx` providing the strongest prior, followed by `anatom_site` and
-`sex` [7, 14, 16]. Hyperparameter optimisation yields a further +0.025 F1 gain
-for EfficientNet-B0; DenseNet-121 and ResNet-50 show no improvement, suggesting
-they require a different regularisation strategy (e.g., cosine LR decay) beyond
-the searched grid.
-
-Sigmoid focal loss with α=0.864 (mathematically derived from the inverse
-malignant class proportion) and γ=2.0 is effective: all three backbones maintain
-validation recall above 90% despite a 6.4:1 class imbalance. Structured error
-analysis confirms that the dominant false-negative categories—amelanotic
-melanomas (31%), small lesions <6mm (28%), and early superficial spreading type
-(23%)—align with the known limitations of dermoscopy-based AI identified by
-Fujisawa et al. [18], validating that the model faces clinically realistic rather
-than artificially simple failure modes. EigenCAM visualisations confirm that
-model attention correctly localises to ABCDE-relevant lesion features rather than
-background artefacts.
+This paper presented a dual-branch melanoma classification system fusing
+dermoscopic images with patient metadata under severe class imbalance. Three
+CNN backbones were compared under identical conditions. EfficientNet-B0 achieves
+the best result: F1=0.9134, recall=91.48%, specificity=98.62% (TTA-enabled),
+outperforming DenseNet-121 (F1=0.8969) and ResNet-50 (F1=0.8669). Its fastest
+inference time (12.3 ms) makes it the most practical choice for clinical
+screening. Metadata fusion contributes ~2.8% recall improvement over an
+image-only baseline, with `age_approx` providing the strongest prior followed
+by anatomical site and sex [7, 14, 16]. Focal loss with principled α=0.864
+keeps all three backbones above 90% recall despite a 6.4:1 class imbalance.
+Error analysis confirms that dominant failure modes—amelanotic melanomas (31%
+of FN), small lesions <6 mm (28%)—align with known clinical challenges [18].
+EigenCAM confirms attention aligns with ABCDE criteria, validating clinical
+interpretability. The ISIC 2020 ensemble AUC of 0.9490 [8] is not reached as
+expected: that system used 18 EfficientNet variants with TTA and external data
+versus a single-model 20-epoch budget here.
 
 ## Future Work
 
-1. **OOD detection.** The sigmoid classifier provides no guarantee for
-   out-of-domain inputs: a non-dermoscopic image can produce a high malignancy
-   probability because the CNN maps all inputs into the same feature space. An
-   explicit image-type detector or energy-based OOD score [Nguyen et al., 2015]
-   is a necessary safeguard before any clinical deployment.
-
-2. **Metadata feature importance.** Permutation importance or SHAP value
-   analysis should formally quantify the individual contribution of each
-   metadata field (age, sex, anatomical site) to the 2.8% recall improvement,
-   informing which fields are critical to collect in a clinical workflow.
-
-3. **Learning-rate scheduling.** Cosine annealing or ReduceLROnPlateau would
-   dampen DenseNet-121's oscillatory dynamics and may reveal the full potential
-   of the coarse hyperparameter grid search for ResNet-50.
-
-4. **Self-supervised pretraining.** Zhang et al. [16] show that SSL pretraining
-   on unlabelled dermoscopic images combined with metadata fusion yields
-   consistent AUC gains; applying this to our backbone would complement the
-   current supervised training regime.
-
-5. **Equity and bias assessment.** Following Groh et al. [15], performance
-   should be stratified by Fitzpatrick phototype before any clinical deployment,
-   particularly given the dataset's known bias toward fair skin types.
-
-6. **Larger EfficientNet variants.** Scaling to B3 or B5 within the same
-   training budget—as done in the winning ISIC ensemble [8]—represents the
-   highest-return single architectural change.
+1. **OOD detection.** A sigmoid classifier provides no domain guard; non-
+   dermoscopic inputs can produce high malignancy probabilities. An explicit
+   image-type detector is a necessary precondition for clinical deployment.
+2. **Metadata feature importance.** SHAP or permutation analysis should
+   formally quantify each field's contribution (age, sex, site) to the 2.8%
+   recall gain.
+3. **LR scheduling + larger backbones.** Cosine annealing would stabilise
+   DenseNet-121 dynamics; scaling to EfficientNet-B3/B5 is the highest-return
+   architectural change [8].
+4. **Equity assessment.** Per Groh et al. [15], performance should be stratified
+   by Fitzpatrick phototype before any clinical deployment.
 
 ---
 
@@ -138,6 +105,4 @@ H. Kittler, "Artificial intelligence in skin cancer diagnosis: A reality check,"
 
 ---
 
-| | |
-|---|---|
-| [← IV. Experiments](05_experiments.md) | |
+[← IV. Experiments](05_experiments.md)
