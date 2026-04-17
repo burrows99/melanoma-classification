@@ -1,9 +1,13 @@
 import json
+import logging
 import os
 import pickle
 import torch
 import torch.nn as nn
 from pathlib import Path
+from huggingface_hub import hf_hub_download, HfApi, RepoFile
+
+logger = logging.getLogger(__name__)
 
 
 class FileIOManager:
@@ -32,6 +36,15 @@ class FileIOManager:
     _ROC_FILENAME           = "roc_curve.png"
     _CONFUSION_FILENAME     = "confusion_matrix.png"
 
+    _HF_REPO: str | None = None
+
+    @classmethod
+    def _get_hf_repo(cls) -> str | None:
+        if cls._HF_REPO is None:
+            from config import Config
+            cls._HF_REPO = Config.get_paths_config().get('hf_model_repo')
+        return cls._HF_REPO
+
     def __init__(self, model_name: str) -> None:
         self._root    = self._OUTPUT_ROOT / model_name
         self._weights = self._root / self._WEIGHTS_SUBDIR
@@ -47,15 +60,33 @@ class FileIOManager:
 
     @classmethod
     def list_available_models(cls) -> list[str]:
-        """Return model names that have a fitted preprocessor under output/."""
+        """Return model names from local output/ first, then supplement from HuggingFace."""
+        models: set[str] = set()
+
+        # Check local first (instant)
         root = cls._OUTPUT_ROOT
-        if not root.exists():
-            return []
-        return sorted(
-            d.name
-            for d in root.iterdir()
-            if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._PREPROCESSOR_FILENAME).exists()
-        )
+        if root.exists():
+            for d in root.iterdir():
+                if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._PREPROCESSOR_FILENAME).exists():
+                    models.add(d.name)
+            if models:
+                logger.info("Found %d local model(s): %s", len(models), models)
+
+        # Supplement from HuggingFace (discovers models not yet downloaded)
+        repo = cls._get_hf_repo()
+        if repo:
+            try:
+                api = HfApi()
+                files = [f.rfilename for f in api.list_repo_tree(repo, repo_type="model", recursive=True) if isinstance(f, RepoFile)]
+                for f in files:
+                    parts = f.split('/')
+                    if len(parts) >= 3 and parts[1] == cls._WEIGHTS_SUBDIR and parts[2] == cls._PREPROCESSOR_FILENAME:
+                        models.add(parts[0])
+                logger.info("After HuggingFace: %d model(s) total", len(models))
+            except Exception as e:
+                logger.warning("Could not list models from HuggingFace: %s", e)
+
+        return sorted(models)
 
     # ------------------------------------------------------------------ #
     # Path constructors                                                    #
@@ -79,8 +110,31 @@ class FileIOManager:
             pickle.dump(preprocessor, f)
         return path
 
+    def _ensure_from_hf(self, subdir: str, filename: str) -> None:
+        """Download *subdir/filename* from the HF repo into the local tree if missing."""
+        local = self._root / subdir / filename
+        if local.exists():
+            return
+        repo = self._get_hf_repo()
+        if not repo:
+            return
+        model_name = self._root.name
+        remote_path = f"{model_name}/{subdir}/{filename}"
+        try:
+            logger.info("Downloading %s from %s ...", remote_path, repo)
+            downloaded = hf_hub_download(
+                repo_id=repo, filename=remote_path, repo_type="model",
+            )
+            local.parent.mkdir(parents=True, exist_ok=True)
+            # Symlink to HF cache to avoid duplication
+            local.symlink_to(downloaded)
+            logger.info("Cached %s -> %s", local, downloaded)
+        except Exception as e:
+            logger.warning("HF download failed for %s: %s", remote_path, e)
+
     def load_preprocessor(self):
-        """Load and return the fitted MetadataPreprocessor."""
+        """Load and return the fitted MetadataPreprocessor (HF then local)."""
+        self._ensure_from_hf(self._WEIGHTS_SUBDIR, self._PREPROCESSOR_FILENAME)
         with open(self.preprocessor_path(), 'rb') as f:
             return pickle.load(f)
 
@@ -138,7 +192,8 @@ class FileIOManager:
 
     def load_gradcam_checkpoint(self, model: nn.Module,
                                 map_location: str | torch.device | None = None) -> nn.Module:
-        """Load the best available checkpoint into *model* in-place."""
+        """Load the best available checkpoint into *model* in-place (HF then local)."""
+        self._ensure_from_hf(self._WEIGHTS_SUBDIR, self._GRADCAM_FILENAME)
         return self.load_checkpoint(model, self.best_available_checkpoint(), map_location=map_location)
 
     # ------------------------------------------------------------------ #

@@ -57,6 +57,7 @@ class Config:
             'train_data_dir':    'dataset/train',
             'train_labels_path': 'dataset/train_concat.csv',
             'kaggle_dataset':    'nroman/melanoma-external-malignant-256',
+            'hf_model_repo':     'burrows99/melanoma-models',
         })
 
     @staticmethod
