@@ -102,7 +102,7 @@ class Evaluator:
         ax.set_ylim(0, 1.05)
         ax.set_ylabel('Score')
         ax.set_title('Best Validation Metrics')
-        ax.legend()
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
         ax.grid(True, axis='y', alpha=0.3)
 
     @staticmethod
