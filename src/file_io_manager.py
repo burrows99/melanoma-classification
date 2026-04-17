@@ -142,6 +142,17 @@ class FileIOManager:
         self._ensure_from_hf(self._WEIGHTS_SUBDIR, self._OOD_STATS_FILENAME)
         return torch.load(self.ood_stats_path(), weights_only=True, map_location=map_location)
 
+    @classmethod
+    def list_available_runs(cls) -> list[str]:
+        """Return names of output dirs that contain a loadable checkpoint."""
+        runs: list[str] = []
+        if not cls._OUTPUT_ROOT.exists():
+            return runs
+        for d in sorted(cls._OUTPUT_ROOT.iterdir()):
+            if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._GRADCAM_FILENAME).exists():
+                runs.append(d.name)
+        return runs
+
     @staticmethod
     def image_path(data_dir: str, image_name: str) -> str:
         """Full path to a dataset image (no model-binding needed)."""

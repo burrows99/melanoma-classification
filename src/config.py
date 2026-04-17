@@ -54,7 +54,7 @@ class Config:
     _experiment: int | None = None
 
     @classmethod
-    def set_experiment(cls, experiment: int) -> None:
+    def set_experiment(cls, experiment: int | None) -> None:
         cls._experiment = experiment
 
     @classmethod

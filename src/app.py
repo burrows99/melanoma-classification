@@ -31,10 +31,18 @@ class App:
         self._ood_mean      : torch.Tensor | None            = None
         self._ood_cov_inv   : torch.Tensor | None            = None
 
-    def load_model(self) -> str:
-        """Load preprocessor + model; return status text."""
+    def load_run(self, run_name: str) -> str:
+        """Load a specific run (e.g. 'efficientnet_b0', 'experiment1')."""
         try:
-            io           = FileIOManager.for_run(Config.MODEL_NAME)
+            # Set experiment config so the model builds with correct architecture
+            import re
+            m = re.match(r'^experiment(\d+)$', run_name)
+            if m:
+                Config.set_experiment(int(m.group(1)))
+            else:
+                Config.set_experiment(None)
+
+            io           = FileIOManager.for_run(run_name)
             preprocessor = io.load_preprocessor()
             model        = MetadataMelanomaModel.build(
                 num_metadata_features=preprocessor.num_output_features
@@ -47,11 +55,11 @@ class App:
             self._model         = model
             self._target_layers = self._get_target_layers()
             self._load_ood_stats(io)
-            logger.info("Model loaded successfully.")
-            return "Model loaded successfully."
+            logger.info("Loaded run: %s", run_name)
+            return f"Loaded: {run_name}"
         except Exception as e:
-            logger.exception("Error loading model")
-            return f"Error loading model: {e}"
+            logger.exception("Error loading run %s", run_name)
+            return f"Error loading {run_name}: {e}"
 
     def _get_target_layers(self) -> dict:
         assert self._model is not None
@@ -112,11 +120,16 @@ class App:
             return "Please upload an image", None
 
         if self._model is None:
-            return "No model loaded. Select a model from the dropdown.", None
+            return "No model loaded. Select a run from the dropdown.", None
 
         try:
             img_rgb, img_resized, img_tensor = self._preprocess_image(img)
-            metadata_tensor = self._prepare_metadata(age, sex, site)
+
+            if self._model._image_only:
+                metadata_tensor = torch.zeros(1, self._model.num_metadata_features,
+                                              device=self._device)
+            else:
+                metadata_tensor = self._prepare_metadata(age, sex, site)
 
             ood_dist = self._mahalanobis_distance(img_tensor)
             if ood_dist is not None and ood_dist > self._OOD_THRESHOLD:
@@ -188,11 +201,20 @@ class App:
 
 
     def build_interface(self) -> gr.Blocks:
+        available_runs = FileIOManager.list_available_runs()
+        default_run    = Config.MODEL_NAME if Config.MODEL_NAME in available_runs else (available_runs[0] if available_runs else None)
+
         with gr.Blocks(title="Melanoma Detection") as iface:
             gr.Markdown("## Melanoma Detection")
 
-            # ── Model status row ─────────────────────────────────────────
+            # ── Model selection + status row ──────────────────────────────
             with gr.Row():
+                run_dropdown = gr.Dropdown(
+                    label="Run",
+                    choices=available_runs,
+                    value=default_run,
+                    interactive=True,
+                )
                 model_status = gr.Textbox(
                     label="Status", interactive=False,
                 )
@@ -231,7 +253,13 @@ class App:
 
             # ── Events ───────────────────────────────────────────────────
             iface.load(
-                fn=self.load_model,
+                fn=lambda: self.load_run(default_run) if default_run else "No trained runs found in output/",
+                outputs=[model_status],
+            )
+
+            run_dropdown.change(
+                fn=self.load_run,
+                inputs=[run_dropdown],
                 outputs=[model_status],
             )
 
