@@ -1,3 +1,20 @@
+---
+title: Melanoma Classification
+emoji: 🔬
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: "6.12.0"
+python_version: "3.12"
+app_file: app.py
+models:
+  - burrows99/melanoma-models
+preload_from_hub:
+  - burrows99/melanoma-models
+short_description: Gradio app to detect melanoma with EigenCAM explainability
+license: apache-2.0
+---
+
 # Melanoma Classification
 
 EfficientNet/DenseNet/ResNet backbone fused with tabular patient metadata, trained with focal loss to handle class imbalance. Includes a Gradio inference app with EigenCAM explainability.
