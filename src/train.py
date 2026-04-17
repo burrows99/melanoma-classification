@@ -28,6 +28,7 @@ class Trainer:
         self._run_name  = self._build_run_name()
         self._io        = FileIOManager.for_run(self._output_name())
         self._io.save_preprocessor(loaders.preprocessor)
+        self._preprocessor = loaders.preprocessor
 
     @staticmethod
     def _output_name() -> str:
@@ -90,6 +91,9 @@ class Trainer:
         )
         evaluator.plot_roc_curve(labels, probs)
         evaluator.plot_confusion_matrix(labels, preds)
+
+        if not final_model._image_only:
+            evaluator.plot_shap(self._val_loader, self._preprocessor._feature_cols)
 
     def train(self) -> None:
         num_epochs     = Config.get_training_config()['num_epochs']

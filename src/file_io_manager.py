@@ -35,6 +35,7 @@ class FileIOManager:
     _METRICS_FILENAME            = "metrics_history.json"
     _ROC_FILENAME                = "roc_curve.png"
     _CONFUSION_FILENAME          = "confusion_matrix.png"
+    _SHAP_FILENAME               = "shap_feature_importance.png"
 
     _HF_REPO: str | None = None
 
@@ -119,6 +120,10 @@ class FileIOManager:
     def confusion_matrix_path(self) -> Path:
         """Confusion matrix plot path."""
         return self._plots / self._CONFUSION_FILENAME
+
+    def shap_plot_path(self) -> Path:
+        """SHAP feature importance plot path."""
+        return self._plots / self._SHAP_FILENAME
 
     @staticmethod
     def image_path(data_dir: str, image_name: str) -> str:

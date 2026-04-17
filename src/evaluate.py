@@ -85,3 +85,33 @@ class Evaluator:
         plt.savefig(path)
         plt.close()
         logger.info("Confusion matrix saved to %s", path)
+
+    def plot_shap(self, val_loader, feature_names: list[str]) -> None:
+        """Generate SHAP feature importance plot for the metadata branch."""
+        import shap
+
+        self.model.eval()
+        all_metadata: list = []
+        with torch.no_grad():
+            for _, metadata_batch, _ in val_loader:
+                all_metadata.append(metadata_batch)
+        all_metadata_tensor = torch.cat(all_metadata, dim=0).to(self._device)
+
+        background = all_metadata_tensor[:100]
+        test_sample = all_metadata_tensor[:200]
+
+        explainer = shap.DeepExplainer(self.model.metadata_mlp, background)
+        shap_values = explainer.shap_values(test_sample)
+
+        plt.figure()
+        shap.summary_plot(
+            shap_values,
+            features=test_sample.cpu().numpy(),
+            feature_names=feature_names,
+            show=False,
+        )
+        io = self._io or FileIOManager.for_run("default")
+        path = io.shap_plot_path()
+        plt.savefig(path, bbox_inches='tight')
+        plt.close()
+        logger.info("SHAP feature importance plot saved to %s", path)

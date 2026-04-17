@@ -15,6 +15,7 @@ dependencies = [
     "pyautogui>=0.9.54",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
+    "shap>=0.46.0",
     "torch>=2.11.0",
     "torchvision>=0.26.0",
 ]
