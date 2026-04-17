@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class App:
+    _OOD_THRESHOLD = 100.0  # Mahalanobis distance above which input is flagged as non-skin-lesion
+
     def __init__(self):
         self._device        = Config.get_training_config()['device']
         self._transform     = Transform(train=False)
@@ -26,6 +28,8 @@ class App:
         self._preprocessor  : Any                            = None
         self._model         : MetadataMelanomaModel | None   = None
         self._target_layers : dict                           = {}
+        self._ood_mean      : torch.Tensor | None            = None
+        self._ood_cov_inv   : torch.Tensor | None            = None
 
     def load_model(self) -> str:
         """Load preprocessor + model; return status text."""
@@ -42,6 +46,7 @@ class App:
             self._preprocessor  = preprocessor
             self._model         = model
             self._target_layers = self._get_target_layers()
+            self._load_ood_stats(io)
             logger.info("Model loaded successfully.")
             return "Model loaded successfully."
         except Exception as e:
@@ -67,6 +72,31 @@ class App:
         logger.info("CAM layers: %s", list(layers))
         return layers
 
+    def _load_ood_stats(self, io: FileIOManager) -> None:
+        try:
+            stats = io.load_ood_stats(map_location=self._device)
+            self._ood_mean    = stats['mean'].to(self._device)
+            self._ood_cov_inv = stats['cov_inv'].to(self._device)
+            logger.info("OOD stats loaded.")
+        except Exception as e:
+            logger.warning("OOD stats not available — OOD detection disabled: %s", e)
+            self._ood_mean = None
+            self._ood_cov_inv = None
+
+    def _mahalanobis_distance(self, img_tensor: torch.Tensor) -> float | None:
+        """Compute Mahalanobis distance of image features from training distribution.
+
+        Based on: Lee et al., "A Simple Unified Framework for Detecting
+        Out-of-Distribution Samples and Adversarial Attacks", NeurIPS 2018.
+        https://arxiv.org/abs/1807.03888
+        """
+        if self._ood_mean is None or self._ood_cov_inv is None or self._model is None:
+            return None
+        with torch.no_grad():
+            feats = self._model.cnn_dropout(self._model.image_backbone(img_tensor)).squeeze(0)
+        diff = feats - self._ood_mean
+        return float(diff @ self._ood_cov_inv @ diff)
+
     def _prepare_metadata(self, age=None, sex=None, site=None) -> torch.Tensor:
         defaults = Config.get_metadata_config()['defaults']
         row = {
@@ -87,6 +117,15 @@ class App:
         try:
             img_rgb, img_resized, img_tensor = self._preprocess_image(img)
             metadata_tensor = self._prepare_metadata(age, sex, site)
+
+            ood_dist = self._mahalanobis_distance(img_tensor)
+            if ood_dist is not None and ood_dist > self._OOD_THRESHOLD:
+                ood_warning = (f"⚠️ This image appears to be out-of-distribution "
+                               f"(distance: {ood_dist:.0f}).\n"
+                               f"The model is trained on skin lesion images only.\n\n")
+            else:
+                ood_warning = ""
+
             prediction_text = self._run_tta(img_rgb, metadata_tensor)
 
             if prediction_text is None:
@@ -94,7 +133,7 @@ class App:
 
             default_layer = self._target_layers.get('blocks[-3].conv_pwl') and 'blocks[-3].conv_pwl' or next(iter(self._target_layers))
             _, side_by_side = self._run_eigencam(img_resized, img_tensor, default_layer)
-            return prediction_text, side_by_side
+            return ood_warning + prediction_text, side_by_side
 
         except Exception:
             logger.exception("Prediction failed")

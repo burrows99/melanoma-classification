@@ -36,6 +36,7 @@ class FileIOManager:
     _ROC_FILENAME                = "roc_curve.png"
     _CONFUSION_FILENAME          = "confusion_matrix.png"
     _SHAP_FILENAME               = "shap_feature_importance.png"
+    _OOD_STATS_FILENAME          = "ood_feature_stats.pt"
 
     _HF_REPO: str | None = None
 
@@ -124,6 +125,22 @@ class FileIOManager:
     def shap_plot_path(self) -> Path:
         """SHAP feature importance plot path."""
         return self._plots / self._SHAP_FILENAME
+
+    def ood_stats_path(self) -> Path:
+        """OOD feature statistics path."""
+        return self._weights / self._OOD_STATS_FILENAME
+
+    def save_ood_stats(self, mean: torch.Tensor, cov_inv: torch.Tensor) -> Path:
+        """Save feature mean and inverse covariance for Mahalanobis OOD detection."""
+        path = self.ood_stats_path()
+        torch.save({'mean': mean.cpu(), 'cov_inv': cov_inv.cpu()}, path)
+        logger.info("OOD feature stats saved to %s", path)
+        return path
+
+    def load_ood_stats(self, map_location=None) -> dict:
+        """Load OOD feature stats (HF fallback)."""
+        self._ensure_from_hf(self._WEIGHTS_SUBDIR, self._OOD_STATS_FILENAME)
+        return torch.load(self.ood_stats_path(), weights_only=True, map_location=map_location)
 
     @staticmethod
     def image_path(data_dir: str, image_name: str) -> str:

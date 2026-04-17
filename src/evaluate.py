@@ -115,3 +115,28 @@ class Evaluator:
         plt.savefig(path, bbox_inches='tight')
         plt.close()
         logger.info("SHAP feature importance plot saved to %s", path)
+
+    def compute_ood_stats(self, val_loader) -> None:
+        """Compute mean + inverse covariance of backbone features for Mahalanobis OOD detection.
+
+        Based on: Lee et al., "A Simple Unified Framework for Detecting
+        Out-of-Distribution Samples and Adversarial Attacks", NeurIPS 2018.
+        https://arxiv.org/abs/1807.03888
+        """
+        self.model.eval()
+        features_list: list[torch.Tensor] = []
+        with torch.no_grad():
+            for images, _, _ in tqdm(val_loader, desc="Computing OOD stats"):
+                images = images.to(self._device)
+                feats = self.model.cnn_dropout(self.model.image_backbone(images))
+                features_list.append(feats.cpu())
+
+        features = torch.cat(features_list, dim=0).float()
+        mean = features.mean(dim=0)
+        centered = features - mean
+        cov = (centered.T @ centered) / (centered.shape[0] - 1)
+        cov += 1e-5 * torch.eye(cov.shape[0])  # regularise for invertibility
+        cov_inv = torch.linalg.inv(cov)
+
+        io = self._io or FileIOManager.for_run("default")
+        io.save_ood_stats(mean, cov_inv)

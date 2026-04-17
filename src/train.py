@@ -91,6 +91,7 @@ class Trainer:
         )
         evaluator.plot_roc_curve(labels, probs)
         evaluator.plot_confusion_matrix(labels, preds)
+        evaluator.compute_ood_stats(self._val_loader)
 
         if not final_model._image_only:
             evaluator.plot_shap(self._val_loader, self._preprocessor._feature_cols)
