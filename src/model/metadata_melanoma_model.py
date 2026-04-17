@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 import torch
 import torch.nn as nn
 from torchvision.ops import MLP, sigmoid_focal_loss
@@ -52,12 +53,23 @@ class MetadataMelanomaModel(nn.Module):
         """Builds the final linear head that fuses image and metadata features."""
         return nn.Linear(num_image_features + num_metadata_features, 1)
 
+    def fuse_and_classify(self, image_features, metadata_input):
+        """Fuse pre-extracted image features with metadata and classify."""
+        metadata_features = self.metadata_mlp(metadata_input)
+        return self.final_classifier(torch.cat((image_features, metadata_features), dim=1))
+
+    @torch.no_grad()
+    def predict_metadata_proba(self, metadata_np: np.ndarray, mean_img_feats: torch.Tensor) -> np.ndarray:
+        """Predict probabilities from metadata (numpy) with fixed image features. Used by SHAP."""
+        meta_t = torch.tensor(metadata_np, dtype=torch.float32, device=mean_img_feats.device)
+        img_expanded = mean_img_feats.expand(meta_t.shape[0], -1)
+        return torch.sigmoid(self.fuse_and_classify(img_expanded, meta_t)).cpu().numpy().flatten()
+
     def forward(self, image_input, metadata_input):
         image_features = self.cnn_dropout(self.image_backbone(image_input))
         if self._image_only:
             return self.final_classifier(image_features)
-        metadata_features = self.metadata_mlp(metadata_input)
-        return self.final_classifier(torch.cat((image_features, metadata_features), dim=1))
+        return self.fuse_and_classify(image_features, metadata_input)
 
     # ------------------------------------------------------------------ #
     # Class-level factories                                                #

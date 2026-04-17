@@ -87,26 +87,42 @@ class Evaluator:
         logger.info("Confusion matrix saved to %s", path)
 
     def plot_shap(self, val_loader, feature_names: list[str]) -> None:
-        """Generate SHAP feature importance plot for the metadata branch."""
+        """Generate SHAP feature importance plot for the metadata branch.
+
+        Uses KernelExplainer (model-agnostic) to attribute the model's output
+        to each of the 14 metadata features while holding image features fixed
+        at their validation-set mean.
+        """
         import shap
 
         self.model.eval()
+
+        # Collect metadata + compute mean image features across validation set
         all_metadata: list = []
+        all_img_feats: list = []
         with torch.no_grad():
-            for _, metadata_batch, _ in val_loader:
+            for img_batch, metadata_batch, _ in val_loader:
                 all_metadata.append(metadata_batch)
-        all_metadata_tensor = torch.cat(all_metadata, dim=0).to(self._device)
+                img_feats = self.model.cnn_dropout(
+                    self.model.image_backbone(img_batch.to(self._device))
+                )
+                all_img_feats.append(img_feats)
+        all_metadata_np = torch.cat(all_metadata, dim=0).cpu().numpy()
+        mean_img_feats = torch.cat(all_img_feats, dim=0).mean(dim=0).unsqueeze(0)
 
-        background = all_metadata_tensor[:100]
-        test_sample = all_metadata_tensor[:200]
+        background = shap.kmeans(all_metadata_np, 25)
+        test_sample = all_metadata_np[:200]
 
-        explainer = shap.DeepExplainer(self.model.metadata_mlp, background)
-        shap_values = explainer.shap_values(test_sample)
+        explainer = shap.KernelExplainer(
+            lambda m: self.model.predict_metadata_proba(m, mean_img_feats),
+            background,
+        )
+        shap_values = explainer.shap_values(test_sample, silent=True)
 
         plt.figure()
         shap.summary_plot(
             shap_values,
-            features=test_sample.cpu().numpy(),
+            features=test_sample,
             feature_names=feature_names,
             show=False,
         )
