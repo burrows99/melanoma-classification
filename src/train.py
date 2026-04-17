@@ -24,9 +24,17 @@ class Trainer:
         self._model     = MetadataMelanomaModel.build(num_metadata_features=num_metadata_features)
         self._criterion = MetadataMelanomaModel.get_criterion()
         self._optimizer = MetadataMelanomaModel.get_optimizer(self._model)
+        self._scheduler = MetadataMelanomaModel.get_scheduler(self._optimizer)
         self._run_name  = self._build_run_name()
-        self._io        = FileIOManager.for_run(Config.MODEL_NAME)
+        self._io        = FileIOManager.for_run(self._output_name())
         self._io.save_preprocessor(loaders.preprocessor)
+
+    @staticmethod
+    def _output_name() -> str:
+        exp = Config.get_experiment()
+        if exp is not None:
+            return f"experiment{exp}"
+        return Config.MODEL_NAME
 
     def _build_run_name(self) -> str:
         cfg = Config.get_training_config()
@@ -126,6 +134,9 @@ class Trainer:
                     Path(prev_path).unlink(missing_ok=True)
                     logger.info("Removed previous checkpoint: %s", prev_path)
                 logger.info("New best model saved: %s  (Val F1: %.4f)", best_path, best_val_f1)
+
+            if self._scheduler:
+                self._scheduler.step()
 
         if best_path:
             self._io.save_gradcam_checkpoint(self._model)

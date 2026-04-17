@@ -69,7 +69,17 @@ class MetadataMelanomaModel(nn.Module):
 
     @staticmethod
     def get_optimizer(model: nn.Module, learning_rate: float | None = None) -> torch.optim.Optimizer:
-        return torch.optim.Adam(
-            model.parameters(),
-            lr=learning_rate or Config.get_training_config()['learning_rate'],
-        )
+        lr = learning_rate or Config.get_training_config()['learning_rate']
+        exp = Config.get_experiment_config()
+        if exp and exp['optimizer'] == 'AdamW':
+            return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=exp['weight_decay'])
+        return torch.optim.Adam(model.parameters(), lr=lr)
+
+    @staticmethod
+    def get_scheduler(optimizer: torch.optim.Optimizer):
+        """Return a LR scheduler if the active experiment requires one, else None."""
+        exp = Config.get_experiment_config()
+        if exp and exp.get('scheduler') == 'CosineAnnealingLR':
+            T_max = Config.get_training_config()['num_epochs']
+            return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
+        return None

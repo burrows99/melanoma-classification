@@ -44,6 +44,8 @@ def _build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--app",   action="store_true", help="Launch Gradio inference app")
 
     # --- Training config overrides ---
+    parser.add_argument("--experiment", type=int, choices=[1, 2, 3],
+                        help="Experiment preset (1: CosineAnneal, 2: AdamW+Cosine, 3: AdamW+Cosine+γ1.5)")
     parser.add_argument("--lr", type=float, dest="learning_rate",
                         help="Learning rate")
     parser.add_argument("--batch-size", type=int, dest="batch_size")
@@ -79,12 +81,14 @@ def main() -> None:
     args = _build_parser().parse_args()
 
     # Build overrides: only keys with non-None values that aren't mode/share flags
-    _mode_keys = {"train", "app", "share"}
+    _mode_keys = {"train", "app", "share", "experiment"}
     overrides = {k: v for k, v in vars(args).items() if k not in _mode_keys and v is not None}
     if overrides:
         Config.override(**overrides)
 
     if args.train:
+        if args.experiment:
+            Config.set_experiment(args.experiment)
         _ensure_dataset()
         from train import Trainer
         Trainer().train()

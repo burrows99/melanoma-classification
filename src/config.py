@@ -21,6 +21,45 @@ class Config:
     BACKBONE_FN   = staticmethod(tv_models.efficientnet_b0)
     BACKBONE_WEIGHTS = tv_models.EfficientNet_B0_Weights.DEFAULT
 
+    # --experiment presets (from improvements.md)
+    # Baseline (no flag): Adam, no scheduler, WD=0, γ=2.0
+    EXPERIMENT_PRESETS = {
+        1: {  # B — Cosine LR
+            'optimizer': 'Adam',
+            'weight_decay': 0,
+            'scheduler': 'CosineAnnealingLR',
+            'focal_gamma': 2.0,
+        },
+        2: {  # C — AdamW + cosine
+            'optimizer': 'AdamW',
+            'weight_decay': 1e-5,
+            'scheduler': 'CosineAnnealingLR',
+            'focal_gamma': 2.0,
+        },
+        3: {  # D — AdamW + cosine + γ=1.5
+            'optimizer': 'AdamW',
+            'weight_decay': 1e-5,
+            'scheduler': 'CosineAnnealingLR',
+            'focal_gamma': 1.5,
+        },
+    }
+
+    _experiment: int | None = None
+
+    @classmethod
+    def set_experiment(cls, experiment: int) -> None:
+        cls._experiment = experiment
+
+    @classmethod
+    def get_experiment(cls) -> int | None:
+        return cls._experiment
+
+    @classmethod
+    def get_experiment_config(cls) -> dict | None:
+        if cls._experiment is None:
+            return None
+        return cls.EXPERIMENT_PRESETS[cls._experiment]
+
     @classmethod
     def get_model_config(cls):
         return cls._merge({
@@ -63,18 +102,19 @@ class Config:
             'hf_model_repo':     'burrows99/melanoma-models',
         })
 
-    @staticmethod
-    def get_loss_config():
+    @classmethod
+    def get_loss_config(cls):
         # Focal loss is used due to heavy class imbalance (~13.6% malignant).
         # Standard cross-entropy is dominated by the easy benign majority;
         # focal loss down-weights those so training focuses on hard/rare positives.
         # alpha = 1 - 0.136 (inverse malignant proportion) -> upweights positive examples.
+        exp = cls.get_experiment_config()
+        gamma = exp['focal_gamma'] if exp else 2.0
         return {
             'type':         'FocalLoss',
             'alpha':        0.864,
-            'gamma':        2.0,
+            'gamma':        gamma,
             'reduction':    'mean',
-            'class_weights': [1.0, 4.0],  # kept for reference, not used with Focal Loss
         }
 
     @staticmethod
