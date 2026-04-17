@@ -115,3 +115,20 @@ output/
     metrics/    # metrics_history.json
     plots/      # roc_curve.png  +  confusion_matrix.png
 ```
+
+---
+
+## Pushing models to Hugging Face
+
+Trained weights are hosted at [huggingface.co/burrows99/melanoma-models](https://huggingface.co/burrows99/melanoma-models).
+
+```bash
+# Install the Hugging Face CLI (included in huggingface_hub)
+uv pip install huggingface_hub
+
+# Login (opens browser or prompts for token)
+hf auth login
+
+# Upload the entire output folder to the repo
+hf upload burrows99/melanoma-models ./output . --repo-type model
+```
