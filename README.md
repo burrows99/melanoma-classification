@@ -17,7 +17,7 @@ license: apache-2.0
 
 # Melanoma Classification
 
-EfficientNet/DenseNet/ResNet backbone fused with tabular patient metadata, trained with focal loss to handle class imbalance. Includes a Gradio inference app with EigenCAM explainability.
+EfficientNet-B0 backbone fused with tabular patient metadata, trained with focal loss to handle class imbalance. Includes a Gradio inference app with EigenCAM explainability.
 
 ---
 
@@ -34,7 +34,7 @@ uv sync
 All entry points go through `main.py`. Either `--train` or `--app` is required.
 
 ```
-uv run main.py --train | --app [options]
+uv run main.py --train | --app  [options]
 ```
 
 ---
@@ -49,13 +49,6 @@ uv run main.py --train | --app [options]
 ---
 
 ## All options
-
-### Model
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--architecture` | str | `efficientnet_b0` | Backbone: `efficientnet_b0`, `densenet121`, `resnet50` |
-| `--image-size` | int | `256` | Input image size (square) |
 
 ### Training
 
@@ -94,17 +87,14 @@ uv run main.py --train | --app [options]
 # Train with all defaults
 uv run main.py --train
 
-# Train with a different backbone and more epochs
-uv run main.py --train --architecture densenet121 --epochs 40
-
 # Train on a custom dataset with a higher learning rate on GPU
 uv run main.py --train \
   --data-dir /data/melanoma/train \
   --labels-csv /data/melanoma/labels.csv \
   --lr 3e-4 --batch-size 64 --device cuda
 
-# Train with ResNet-50, smaller images, TTA enabled during validation
-uv run main.py --train --architecture resnet50 --image-size 224 --tta
+# Train with TTA enabled during validation
+uv run main.py --train --tta
 
 # Smoke test — 1 epoch, 0 workers: verifies the full pipeline
 # (data loading → forward pass → loss → checkpoint → metrics JSON → plots)
@@ -119,10 +109,6 @@ uv run main.py --app --share
 
 # Launch the app and force CPU inference
 uv run main.py --app --device cpu
-
-# Compare all trained models — grouped bar chart of best val F1 / accuracy / recall
-# Reads output/*/metrics/metrics_history.json; saves output/metrics_comparison.png
-uv run main.py --compare
 ```
 
 ---
@@ -131,7 +117,7 @@ uv run main.py --compare
 
 ```
 output/
-  {architecture}/
+  efficientnet_b0/
     weights/    # best_ep{n}.pth  +  gradcam.pth
     metrics/    # metrics_history.json
     plots/      # roc_curve.png  +  confusion_matrix.png
