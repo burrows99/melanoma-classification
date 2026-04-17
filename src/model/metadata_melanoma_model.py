@@ -17,8 +17,16 @@ class MetadataMelanomaModel(nn.Module):
         super().__init__()
         self.num_metadata_features = num_metadata_features
         self.image_backbone, self.cnn_dropout, num_image_features = self._build_image_branch(pretrained, cnn_dropout)
-        self.metadata_mlp = self._build_metadata_branch(num_metadata_features, mlp_hidden_dims, mlp_dropout)
-        self.final_classifier = self._build_classifier(num_image_features, mlp_hidden_dims[-1])
+
+        exp = Config.get_experiment_config()
+        self._image_only = bool(exp and exp.get('image_only'))
+
+        if self._image_only:
+            self.metadata_mlp = nn.Identity()
+            self.final_classifier = self._build_classifier(num_image_features, 0)
+        else:
+            self.metadata_mlp = self._build_metadata_branch(num_metadata_features, mlp_hidden_dims, mlp_dropout)
+            self.final_classifier = self._build_classifier(num_image_features, mlp_hidden_dims[-1])
 
     def _build_image_branch(self, pretrained, cnn_dropout):
         """Loads the backbone from Config and strips its classifier head."""
@@ -46,6 +54,8 @@ class MetadataMelanomaModel(nn.Module):
 
     def forward(self, image_input, metadata_input):
         image_features = self.cnn_dropout(self.image_backbone(image_input))
+        if self._image_only:
+            return self.final_classifier(image_features)
         metadata_features = self.metadata_mlp(metadata_input)
         return self.final_classifier(torch.cat((image_features, metadata_features), dim=1))
 

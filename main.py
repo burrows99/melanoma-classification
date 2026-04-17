@@ -44,8 +44,8 @@ def _build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--app",   action="store_true", help="Launch Gradio inference app")
 
     # --- Training config overrides ---
-    parser.add_argument("--experiment", type=int, choices=[1, 2, 3],
-                        help="Experiment preset (1: CosineAnneal, 2: AdamW+Cosine, 3: AdamW+Cosine+γ1.5)")
+    parser.add_argument("--experiment", type=int, choices=[1, 2, 3, 4],
+                        help="Experiment preset (1: CosineAnneal, 2: AdamW+Cosine, 3: AdamW+Cosine+γ1.5, 4: image-only ablation)")
     parser.add_argument("--lr", type=float, dest="learning_rate",
                         help="Learning rate")
     parser.add_argument("--batch-size", type=int, dest="batch_size")

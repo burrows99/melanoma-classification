@@ -42,6 +42,13 @@ class Config:
             'scheduler': 'CosineAnnealingLR',
             'focal_gamma': 1.5,
         },
+        4: {  # Image-only ablation — no metadata branch
+            'optimizer': 'Adam',
+            'weight_decay': 0,
+            'scheduler': None,
+            'focal_gamma': 2.0,
+            'image_only': True,
+        },
     }
 
     _experiment: int | None = None
