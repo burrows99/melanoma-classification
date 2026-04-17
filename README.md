@@ -54,6 +54,7 @@ uv run main.py --train | --app  [options]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
+| `--experiment` | int | — | Experiment preset: `1` CosineAnneal, `2` AdamW+Cosine, `3` AdamW+Cosine+γ1.5, `4` image-only ablation |
 | `--lr` | float | `1e-4` | Learning rate |
 | `--batch-size` | int | `32` | Batch size |
 | `--epochs` | int | `20` | Number of training epochs |
@@ -84,17 +85,20 @@ uv run main.py --train | --app  [options]
 ## Examples
 
 ```bash
-# Train with all defaults
+# Train with all defaults (baseline A)
 uv run main.py --train
 
-# Train on a custom dataset with a higher learning rate on GPU
-uv run main.py --train \
-  --data-dir /data/melanoma/train \
-  --labels-csv /data/melanoma/labels.csv \
-  --lr 3e-4 --batch-size 64 --device cuda
+# Experiment 1 — Adam + CosineAnnealingLR
+uv run main.py --train --experiment 1
 
-# Train with TTA enabled during validation
-uv run main.py --train --tta
+# Experiment 2 — AdamW + CosineAnnealingLR
+uv run main.py --train --experiment 2
+
+# Experiment 3 — AdamW + CosineAnnealingLR + γ=1.5
+uv run main.py --train --experiment 3
+
+# Experiment 4 — image-only ablation (no metadata)
+uv run main.py --train --experiment 4
 
 # Smoke test — 1 epoch, 0 workers: verifies the full pipeline
 # (data loading → forward pass → loss → checkpoint → metrics JSON → plots)
@@ -117,10 +121,18 @@ uv run main.py --app --device cpu
 
 ```
 output/
-  efficientnet_b0/
-    weights/    # best_ep{n}.pth  +  gradcam.pth
-    metrics/    # metrics_history.json
-    plots/      # roc_curve.png  +  confusion_matrix.png
+  efficientnet_b0/          # baseline (no --experiment)
+    weights/                # best_ep{n}.pth  +  gradcam.pth
+    metrics/                # metrics_history.json
+    plots/                  # roc_curve.png, confusion_matrix.png, shap_feature_importance.png
+  experiment1/              # --experiment 1
+    weights/ metrics/ plots/
+  experiment2/              # --experiment 2
+    weights/ metrics/ plots/
+  experiment3/              # --experiment 3
+    weights/ metrics/ plots/
+  experiment4/              # --experiment 4 (image-only, no SHAP plot)
+    weights/ metrics/ plots/
 ```
 
 ---
