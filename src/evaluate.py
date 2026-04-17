@@ -1,3 +1,4 @@
+import json
 import logging
 import torch
 import numpy as np
@@ -71,6 +72,56 @@ class Evaluator:
         plt.savefig(path)
         plt.close()
         logger.info("ROC curve saved to %s", path)
+
+    @staticmethod
+    def _load_best_metrics(output_root) -> list[tuple[str, dict]]:
+        entries: list[tuple[str, dict]] = []
+        for model_dir in sorted(output_root.iterdir()):
+            if 'smoke_test' in model_dir.name:
+                continue
+            metrics_file = model_dir / FileIOManager._METRICS_SUBDIR / FileIOManager._METRICS_FILENAME
+            if metrics_file.exists():
+                with open(metrics_file) as f:
+                    history = json.load(f)
+                best = {k: max(e[k] for e in history) for k in ('val_f1', 'val_acc', 'val_recall')}
+                entries.append((model_dir.name, best))
+        return entries
+
+    @staticmethod
+    def _plot_best_metrics_bar(ax, entries: list[tuple[str, dict]]) -> None:
+        metrics_keys = ['val_f1', 'val_acc', 'val_recall']
+        metric_labels = ['F1', 'Accuracy', 'Recall']
+        n_models = len(entries)
+        bar_width = 0.2
+        x = np.arange(len(metrics_keys))
+        for i, (model_name, best) in enumerate(entries):
+            offset = (i - (n_models - 1) / 2) * bar_width
+            ax.bar(x + offset, [best[k] for k in metrics_keys], width=bar_width, label=model_name)
+        ax.set_xticks(x)
+        ax.set_xticklabels(metric_labels)
+        ax.set_ylim(0, 1.05)
+        ax.set_ylabel('Score')
+        ax.set_title('Best Validation Metrics')
+        ax.legend()
+        ax.grid(True, axis='y', alpha=0.3)
+
+    @staticmethod
+    def plot_metrics_comparison() -> None:
+        """Grouped bar chart of best val metrics for all trained models.
+        Reads metrics_history.json; saves output/metrics_comparison.png.
+        """
+        entries = Evaluator._load_best_metrics(FileIOManager._OUTPUT_ROOT)
+        if not entries:
+            logger.warning("No metrics_history.json files found under %s — run training first.", FileIOManager._OUTPUT_ROOT)
+            return
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        Evaluator._plot_best_metrics_bar(ax, entries)
+        fig.tight_layout()
+        out = FileIOManager.metrics_comparison_path()
+        fig.savefig(out)
+        plt.close(fig)
+        logger.info("Metrics comparison saved to %s", out)
 
     def plot_confusion_matrix(self, labels, preds):
         cm = confusion_matrix(labels, preds)

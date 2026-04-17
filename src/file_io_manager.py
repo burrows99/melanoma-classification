@@ -30,11 +30,12 @@ class FileIOManager:
     _METRICS_SUBDIR  = "metrics"
     _PLOTS_SUBDIR    = "plots"
 
-    _GRADCAM_FILENAME       = "gradcam.pth"
-    _PREPROCESSOR_FILENAME  = "preprocessor.pkl"
-    _METRICS_FILENAME       = "metrics_history.json"
-    _ROC_FILENAME           = "roc_curve.png"
-    _CONFUSION_FILENAME     = "confusion_matrix.png"
+    _GRADCAM_FILENAME            = "gradcam.pth"
+    _PREPROCESSOR_FILENAME       = "preprocessor.pkl"
+    _METRICS_FILENAME            = "metrics_history.json"
+    _ROC_FILENAME                = "roc_curve.png"
+    _CONFUSION_FILENAME          = "confusion_matrix.png"
+    _METRICS_COMPARISON_FILENAME = "metrics_comparison.png"
 
     _HF_REPO: str | None = None
 
@@ -145,6 +146,11 @@ class FileIOManager:
     def roc_curve_path(self) -> Path:
         """ROC curve plot path."""
         return self._plots / self._ROC_FILENAME
+
+    @classmethod
+    def metrics_comparison_path(cls) -> Path:
+        """Path for the multi-model metrics comparison plot."""
+        return cls._OUTPUT_ROOT / cls._METRICS_COMPARISON_FILENAME
 
     def confusion_matrix_path(self) -> Path:
         """Confusion matrix plot path."""
