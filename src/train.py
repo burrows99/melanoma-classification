@@ -122,6 +122,7 @@ class Trainer:
 
             self._io.append_epoch_metrics({
                 "epoch": epoch + 1,
+                "experiment": self._output_name(),
                 "learning_rate": current_lr,
                 "train_loss": train_loss, "train_acc": train_acc,
                 "train_recall": train_recall, "train_f1": train_f1,
