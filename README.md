@@ -119,6 +119,10 @@ uv run main.py --app --share
 
 # Launch the app and force CPU inference
 uv run main.py --app --device cpu
+
+# Compare all trained models — grouped bar chart of best val F1 / accuracy / recall
+# Reads output/*/metrics/metrics_history.json; saves output/metrics_comparison.png
+uv run main.py --compare
 ```
 
 ---
