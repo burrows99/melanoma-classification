@@ -25,13 +25,13 @@ class Trainer:
         self._criterion = MetadataMelanomaModel.get_criterion()
         self._optimizer = MetadataMelanomaModel.get_optimizer(self._model)
         self._run_name  = self._build_run_name()
-        self._io        = FileIOManager.for_run(Config.get_model_config()['architecture'])
+        self._io        = FileIOManager.for_run(Config.MODEL_NAME)
         self._io.save_preprocessor(loaders.preprocessor)
 
     def _build_run_name(self) -> str:
         cfg = Config.get_training_config()
         base = (
-            f"{Config.get_model_config()['architecture']}_Meta"
+            f"{Config.MODEL_NAME}_Meta"
             f"_LR{cfg['learning_rate']}_BS{cfg['batch_size']}_Ep{cfg['num_epochs']}"
         )
         aug = Config.get_augmentation_config()

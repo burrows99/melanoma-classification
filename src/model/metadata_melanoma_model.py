@@ -1,7 +1,6 @@
 import logging
 import torch
 import torch.nn as nn
-import torchvision.models as tv_models
 from torchvision.ops import MLP, sigmoid_focal_loss
 from functools import partial
 from config import Config
@@ -13,13 +12,6 @@ logger = logging.getLogger(__name__)
 class MetadataMelanomaModel(nn.Module):
     """Model combining image features (CNN backbone) and tabular metadata (MLP)."""
 
-    # Supported torchvision backbones: architecture name -> (factory fn, pretrained weights)
-    _BACKBONES = {
-        'efficientnet_b0': (tv_models.efficientnet_b0, tv_models.EfficientNet_B0_Weights.DEFAULT),
-        'densenet121':     (tv_models.densenet121,     tv_models.DenseNet121_Weights.DEFAULT),
-        'resnet50':        (tv_models.resnet50,        tv_models.ResNet50_Weights.DEFAULT),
-    }
-
     def __init__(self, num_metadata_features, pretrained=True,
                  cnn_dropout=0.0, mlp_hidden_dims=[128, 64], mlp_dropout=0.3):
         super().__init__()
@@ -29,19 +21,14 @@ class MetadataMelanomaModel(nn.Module):
         self.final_classifier = self._build_classifier(num_image_features, mlp_hidden_dims[-1])
 
     def _build_image_branch(self, pretrained, cnn_dropout):
-        """Loads the torchvision backbone and strips its classifier head."""
-        if Config.get_model_config()['architecture'] not in self._BACKBONES:
-            raise ValueError(f"Unsupported architecture '{Config.get_model_config()['architecture']}'. Supported: {list(self._BACKBONES)}")
-        fn, weights = self._BACKBONES[Config.get_model_config()['architecture']]
-        backbone = fn(weights=weights if pretrained else None)
-        if hasattr(backbone, 'fc'):            # ResNet: single Linear head
-            num_features = backbone.fc.in_features
-            backbone.fc = nn.Identity()
-        elif hasattr(backbone, 'classifier'):  # EfficientNet / DenseNet: Sequential or Linear head
-            head = backbone.classifier
-            num_features = (head[-1] if isinstance(head, nn.Sequential) else head).in_features
-            backbone.classifier = nn.Identity()
-        return backbone, nn.Dropout(cnn_dropout), num_features  # Dropout(p=0) is a no-op
+        """Loads the backbone from Config and strips its classifier head."""
+        backbone = Config.BACKBONE_FN(
+            weights=Config.BACKBONE_WEIGHTS if pretrained else None
+        )
+        head = backbone.classifier
+        num_features = (head[-1] if isinstance(head, nn.Sequential) else head).in_features
+        backbone.classifier = nn.Identity()
+        return backbone, nn.Dropout(cnn_dropout), num_features
 
     def _build_metadata_branch(self, num_metadata_features, hidden_dims, dropout):
         """Builds the metadata MLP using torchvision.ops.MLP (Linear + BN + ReLU + Dropout)."""
@@ -55,7 +42,7 @@ class MetadataMelanomaModel(nn.Module):
 
     def _build_classifier(self, num_image_features, num_metadata_features):
         """Builds the final linear head that fuses image and metadata features."""
-        return nn.Linear(num_image_features + num_metadata_features, Config.get_model_config()['num_classes'])
+        return nn.Linear(num_image_features + num_metadata_features, 1)
 
     def forward(self, image_input, metadata_input):
         image_features = self.cnn_dropout(self.image_backbone(image_input))
@@ -68,7 +55,7 @@ class MetadataMelanomaModel(nn.Module):
     @classmethod
     def build(cls, num_metadata_features: int) -> "MetadataMelanomaModel":
         """Instantiate and move model to the configured device."""
-        logger.info("Creating model '%s' with %d metadata features.", Config.get_model_config()['architecture'], num_metadata_features)
+        logger.info("Creating EfficientNet-B0 model with %d metadata features.", num_metadata_features)
         return cls(num_metadata_features=num_metadata_features).to(Config.get_training_config()['device'])
 
     @staticmethod

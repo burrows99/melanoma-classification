@@ -42,14 +42,6 @@ def _build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--train", action="store_true", help="Run training loop")
     mode.add_argument("--app",   action="store_true", help="Launch Gradio inference app")
-    mode.add_argument("--compare", action="store_true", dest="compare",
-                      help="Compare all trained models using metrics_history.json and save output/metrics_comparison.png")
-
-    # --- Model config overrides ---
-    parser.add_argument("--architecture", type=str,
-                        help="Backbone: efficientnet_b0 | densenet121 | resnet50")
-    parser.add_argument("--image-size", type=int, dest="image_size",
-                        help="Input image size (square)")
 
     # --- Training config overrides ---
     parser.add_argument("--lr", type=float, dest="learning_rate",
@@ -87,7 +79,7 @@ def main() -> None:
     args = _build_parser().parse_args()
 
     # Build overrides: only keys with non-None values that aren't mode/share flags
-    _mode_keys = {"train", "app", "compare", "share"}
+    _mode_keys = {"train", "app", "share"}
     overrides = {k: v for k, v in vars(args).items() if k not in _mode_keys and v is not None}
     if overrides:
         Config.override(**overrides)
@@ -96,9 +88,6 @@ def main() -> None:
         _ensure_dataset()
         from train import Trainer
         Trainer().train()
-    elif args.compare:
-        from evaluate import Evaluator
-        Evaluator.plot_metrics_comparison()
     else:
         from app import App
         App().launch(share=args.share)

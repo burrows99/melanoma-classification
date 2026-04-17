@@ -26,20 +26,11 @@ class App:
         self._preprocessor  : Any                            = None
         self._model         : MetadataMelanomaModel | None   = None
         self._target_layers : dict                           = {}
-        self._model_name    : str | None                     = None
 
-    def _infer_architecture(self, model_name: str) -> str:
-        """Infer backbone architecture from the model directory name."""
-        for arch in MetadataMelanomaModel._BACKBONES:
-            if model_name.startswith(arch):
-                return arch
-        return model_name
-
-    def load_model(self, model_name: str) -> str:
-        """Load preprocessor + model for *model_name*; return status text."""
+    def load_model(self) -> str:
+        """Load preprocessor + model; return status text."""
         try:
-            Config.override(architecture=self._infer_architecture(model_name))
-            io           = FileIOManager.for_run(model_name)
+            io           = FileIOManager.for_run(Config.MODEL_NAME)
             preprocessor = io.load_preprocessor()
             model        = MetadataMelanomaModel.build(
                 num_metadata_features=preprocessor.num_output_features
@@ -50,13 +41,12 @@ class App:
             self._io            = io
             self._preprocessor  = preprocessor
             self._model         = model
-            self._model_name    = model_name
             self._target_layers = self._get_target_layers()
-            logger.info("Model '%s' loaded successfully.", model_name)
-            return f"Model '{model_name}' loaded successfully."
+            logger.info("Model loaded successfully.")
+            return "Model loaded successfully."
         except Exception as e:
-            logger.exception("Error loading '%s'", model_name)
-            return f"Error loading '{model_name}': {e}"
+            logger.exception("Error loading model")
+            return f"Error loading model: {e}"
 
     def _get_target_layers(self) -> dict:
         assert self._model is not None
@@ -159,22 +149,13 @@ class App:
 
 
     def build_interface(self) -> gr.Blocks:
-        available_models = FileIOManager.list_available_models()
-        default_model    = available_models[0] if available_models else None
-
         with gr.Blocks(title="Melanoma Detection") as iface:
             gr.Markdown("## Melanoma Detection")
 
-            # ── Model selection row ──────────────────────────────────────
+            # ── Model status row ─────────────────────────────────────────
             with gr.Row():
-                model_dropdown = gr.Dropdown(
-                    label="Model",
-                    choices=available_models,
-                    value=default_model,
-                    scale=2,
-                )
                 model_status = gr.Textbox(
-                    label="Status", interactive=False, scale=5,
+                    label="Status", interactive=False,
                 )
 
             # ── Main content ─────────────────────────────────────────────
@@ -210,15 +191,8 @@ class App:
                     )
 
             # ── Events ───────────────────────────────────────────────────
-            if default_model:
-                iface.load(
-                    fn=lambda m=default_model: self.load_model(m),
-                    outputs=[model_status],
-                )
-
-            model_dropdown.change(
+            iface.load(
                 fn=self.load_model,
-                inputs=[model_dropdown],
                 outputs=[model_status],
             )
 

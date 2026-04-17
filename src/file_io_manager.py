@@ -5,7 +5,7 @@ import pickle
 import torch
 import torch.nn as nn
 from pathlib import Path
-from huggingface_hub import hf_hub_download, HfApi, RepoFile
+from huggingface_hub import hf_hub_download
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,6 @@ class FileIOManager:
     _METRICS_FILENAME            = "metrics_history.json"
     _ROC_FILENAME                = "roc_curve.png"
     _CONFUSION_FILENAME          = "confusion_matrix.png"
-    _METRICS_COMPARISON_FILENAME = "metrics_comparison.png"
 
     _HF_REPO: str | None = None
 
@@ -58,36 +57,6 @@ class FileIOManager:
     def for_run(cls, model_name: str) -> "FileIOManager":
         """Factory: return a manager bound to *model_name*."""
         return cls(model_name)
-
-    @classmethod
-    def list_available_models(cls) -> list[str]:
-        """Return model names from local output/ first, then supplement from HuggingFace."""
-        models: set[str] = set()
-
-        # Check local first (instant)
-        root = cls._OUTPUT_ROOT
-        if root.exists():
-            for d in root.iterdir():
-                if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._PREPROCESSOR_FILENAME).exists():
-                    models.add(d.name)
-            if models:
-                logger.info("Found %d local model(s): %s", len(models), models)
-
-        # Supplement from HuggingFace (discovers models not yet downloaded)
-        repo = cls._get_hf_repo()
-        if repo:
-            try:
-                api = HfApi()
-                files = [f.rfilename for f in api.list_repo_tree(repo, repo_type="model", recursive=True) if isinstance(f, RepoFile)]
-                for f in files:
-                    parts = f.split('/')
-                    if len(parts) >= 3 and parts[1] == cls._WEIGHTS_SUBDIR and parts[2] == cls._PREPROCESSOR_FILENAME:
-                        models.add(parts[0])
-                logger.info("After HuggingFace: %d model(s) total", len(models))
-            except Exception as e:
-                logger.warning("Could not list models from HuggingFace: %s", e)
-
-        return sorted(models)
 
     # ------------------------------------------------------------------ #
     # Path constructors                                                    #
@@ -146,11 +115,6 @@ class FileIOManager:
     def roc_curve_path(self) -> Path:
         """ROC curve plot path."""
         return self._plots / self._ROC_FILENAME
-
-    @classmethod
-    def metrics_comparison_path(cls) -> Path:
-        """Path for the multi-model metrics comparison plot."""
-        return cls._OUTPUT_ROOT / cls._METRICS_COMPARISON_FILENAME
 
     def confusion_matrix_path(self) -> Path:
         """Confusion matrix plot path."""

@@ -1,6 +1,7 @@
 # --- Configuration File ---
 
 import torch
+import torchvision.models as tv_models
 
 
 class Config:
@@ -16,11 +17,13 @@ class Config:
         """Return base dict with any matching overrides applied."""
         return {**base, **{k: cls._overrides[k] for k in base if k in cls._overrides}}
 
+    MODEL_NAME    = 'efficientnet_b0'
+    BACKBONE_FN   = staticmethod(tv_models.efficientnet_b0)
+    BACKBONE_WEIGHTS = tv_models.EfficientNet_B0_Weights.DEFAULT
+
     @classmethod
     def get_model_config(cls):
         return cls._merge({
-            'architecture' : 'efficientnet_b0',
-            'num_classes' : 1,
             'image_size' : 256,
             'num_metadata_features' : 14,
         })
