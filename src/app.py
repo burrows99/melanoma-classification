@@ -28,9 +28,17 @@ class App:
         self._target_layers : dict                           = {}
         self._model_name    : str | None                     = None
 
+    def _infer_architecture(self, model_name: str) -> str:
+        """Infer backbone architecture from the model directory name."""
+        for arch in MetadataMelanomaModel._BACKBONES:
+            if model_name.startswith(arch):
+                return arch
+        return model_name
+
     def load_model(self, model_name: str) -> str:
         """Load preprocessor + model for *model_name*; return status text."""
         try:
+            Config.override(architecture=self._infer_architecture(model_name))
             io           = FileIOManager.for_run(model_name)
             preprocessor = io.load_preprocessor()
             model        = MetadataMelanomaModel.build(
