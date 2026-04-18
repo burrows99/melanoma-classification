@@ -255,16 +255,28 @@ recall at 93.54\% but surging FP from 145 to 181.
 specificity---FP falls to 144 (lowest of fusion models) while FN rises
 modestly to 74.
 
-Fig.~\ref{fig:cm} summarises all five experiments with the key design
-decision, plain-English rationale, and FN/FP outcome for each.
+Table~\ref{tab:deltas} isolates the individual contribution of each change
+by reporting deltas relative to the immediately preceding configuration.
 
-\begin{figure}[t]
+\begin{table}[t]
+\caption{Isolated contribution of each design change. $\Delta$ values are
+         relative to the prior configuration. Recall and F1 from
+         best-checkpoint results.}
+\label{tab:deltas}
 \centering
-\includegraphics[width=\columnwidth]{experiments_overview.png}
-\caption{Per-experiment summary: design decision, motivation, and best-checkpoint
-         FN/FP outcome. Arrows indicate change relative to the prior experiment.}
-\label{fig:cm}
-\end{figure}
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Change} & \textbf{vs.} & $\boldsymbol{\Delta}$\textbf{F1} & $\boldsymbol{\Delta}$\textbf{Recall} & $\boldsymbol{\Delta}$\textbf{FN} & $\boldsymbol{\Delta}$\textbf{FP} \\
+\midrule
+Cosine sched.   & Baseline  & $+$0.0052 & $+$0.98\,pp & $-$10 & $\phantom{+}$0 \\
+AdamW + WD      & Exp.~1    & $-$0.0129 & $+$0.40\,pp & $-$4  & $+$36 \\
+$\gamma$1.5     & Exp.~2    & $+$0.0113 & $-$0.79\,pp & $+$8  & $-$37 \\
+Metadata fusion & Exp.~4    & $-$0.0068 & $+$1.86\,pp & $-$19 & $+$39 \\
+TTA (6 xforms)  & Baseline  & $+$0.0202 & $-$0.68\,pp & $+$7  & $-$55 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % ------ IV-C: Training Dynamics ------
 \subsection{Training Dynamics}\label{sec:dynamics}
