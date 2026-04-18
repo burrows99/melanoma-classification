@@ -151,15 +151,26 @@ Sigmoid focal loss~\cite{b11}:
   \label{eq:focal}
 \end{equation}
 with $\alpha{=}0.864$, $\gamma{=}2.0$. We define five experiments
-(Table~\ref{tab:hp}): \textbf{Baseline}~(Adam, fixed LR),
-\textbf{Exp.~1}~($+$cosine annealing), \textbf{Exp.~2}~(switches to AdamW, which couples weight decay
-$10^{-5}$ with the optimiser), \textbf{Exp.~3}~($+$reduced $\gamma{=}1.5$), and
-\textbf{Exp.~4}~(image-only ablation, same HP as Baseline but metadata
-branch disabled). Exp.~1--3 each introduce
-\emph{one primary change} over their predecessor (Exp.~2 couples optimiser
-and weight decay as AdamW inherently includes decoupled WD), enabling
-controlled isolation of each factor's effect. The model checkpoint with the highest
-validation F1 is retained.
+(Table~\ref{tab:hp}), each introducing \emph{one primary change} so every
+factor can be isolated:
+%
+\textbf{Baseline} — Adam, fixed LR, $\gamma{=}2.0$, with metadata; a
+minimal-tricks reference.
+%
+\textbf{Exp.~1} adds cosine-annealing LR scheduling to help the model settle
+into sharper minima and improve F1 without extra FP.
+%
+\textbf{Exp.~2} replaces Adam with AdamW (decoupled weight decay $10^{-5}$)
+to reduce overfitting on the minority class and boost recall.
+%
+\textbf{Exp.~3} lowers $\gamma$ from 2.0 to 1.5, down-weighting easy
+negatives less aggressively to recover specificity lost from the broader
+decision boundary in Exp.~2.
+%
+\textbf{Exp.~4} disables the metadata MLP (same HP as Baseline) to quantify
+the exact contribution of metadata fusion.
+%
+The checkpoint with the highest validation F1 is retained.
 
 \begin{table}[t]
 \caption{Hyperparameter Configurations (EfficientNet-B0)}
