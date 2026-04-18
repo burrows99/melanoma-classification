@@ -88,7 +88,8 @@ and the ISIC private test set.
 
 \subsection{CNN Backbones for Dermoscopy}
 The ISIC 2020 challenge~\cite{b6} released 33{,}126 dermoscopic images with
-patient metadata. The winning solution used an EfficientNet
+patient metadata; our training set concatenates ISIC~2020 with additional
+ISIC~2019 images, yielding 37{,}648 samples. The winning solution used an EfficientNet
 ensemble~\cite{b7} (AUC$\,{=}\,$0.9490). \textbf{EfficientNet-B0}~\cite{b8}
 applies compound scaling to balance accuracy and efficiency with only 5.3\,M
 parameters. DenseNet-121~\cite{b9} and ResNet-50~\cite{b10} are popular
@@ -149,12 +150,13 @@ Sigmoid focal loss~\cite{b11}:
 \end{equation}
 with $\alpha{=}0.864$, $\gamma{=}2.0$. We define five experiments
 (Table~\ref{tab:hp}): \textbf{Baseline}~(Adam, fixed LR),
-\textbf{Exp.~1}~($+$cosine annealing), \textbf{Exp.~2}~($+$AdamW with
-weight decay), \textbf{Exp.~3}~($+$reduced $\gamma{=}1.5$), and
+\textbf{Exp.~1}~($+$cosine annealing), \textbf{Exp.~2}~(switches to AdamW, which couples weight decay
+$10^{-5}$ with the optimiser), \textbf{Exp.~3}~($+$reduced $\gamma{=}1.5$), and
 \textbf{Exp.~4}~(image-only ablation, same HP as Baseline but metadata
 branch disabled). Exp.~1--3 each introduce
-\emph{one additional change} over its predecessor, enabling controlled
-isolation of each factor's effect. The model checkpoint with the highest
+\emph{one primary change} over their predecessor (Exp.~2 couples optimiser
+and weight decay as AdamW inherently includes decoupled WD), enabling
+controlled isolation of each factor's effect. The model checkpoint with the highest
 validation F1 is retained.
 
 \begin{table}[t]
@@ -201,6 +203,10 @@ Comparing rows in Table~\ref{tab:hpsearch}: metadata reduces FN from 99 to
 80 ($\Delta$recall$\,{=}\,{+}$1.9~pp) at the cost of 39 extra FP, because
 the MLP increases sensitivity to anatomical-site features. TTA then reduces
 FP from 145 to 90, yielding F1$\,{=}\,$0.9134 (specificity~98.62\%).
+Notably, TTA trades 0.7~pp recall (92.16\%$\,{\rightarrow}\,$91.48\%) for
+55 fewer false positives, improving F1 and specificity at a small sensitivity
+cost---an acceptable trade-off for a screening tool where FP burden also
+matters.
 Fig.~\ref{fig:ablation} confirms metadata fusion consistently improves
 recall from the earliest epochs.
 
@@ -225,7 +231,7 @@ recall from the earliest epochs.
 \toprule
  & \textbf{F1} & \textbf{Recall} & \textbf{Acc} & \textbf{TP} & \textbf{FN} & \textbf{FP} & \textbf{TN} \\
 \midrule
-Baseline & 0.8932 & 92.17\% & 97.01\% & 941 & 80 & 145 & 6364 \\
+Baseline & 0.8932 & 92.16\% & 97.01\% & 941 & 80 & 145 & 6364 \\
 Exp.~1 & \textbf{0.8984} & 93.14\% & 97.14\% & 951 & 70 & 145 & 6364 \\
 Exp.~2 & 0.8855 & \textbf{93.54\%} & 96.72\% & 955 & 66 & 181 & 6328 \\
 Exp.~3 & 0.8968 & 92.75\% & 97.10\% & 947 & 74 & 144 & 6365 \\
@@ -284,7 +290,7 @@ Baseline, while Exp.~4 (image-only) has the fewest FP but the most FN.
 \end{figure}
 
 Fig.~\ref{fig:training} overlays training dynamics. Baseline converges
-smoothly (loss $0.0155{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
+smoothly (loss $0.0152{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
 (Exp.~1--3) drives loss lower but widens the gap (0.36--0.59\%). Exp.~3
 ($\gamma{=}1.5$) shows the largest gap. Exp.~1 achieves the best trade-off.
 
@@ -335,12 +341,15 @@ magnitudes, distributing importance more evenly.
 % ------ IV-F: Error Analysis ------
 \subsection{Error Analysis}\label{sec:error}
 
-\textbf{False negatives (${\sim}$7--8.5\% of malignant):} amelanotic
-melanomas (${\sim}$31\%), small $<$6\,mm (${\sim}$28\%), early superficial
-spreading ($\sim$23\%)---subtypes lacking pigmented features~\cite{b15}.
-\textbf{False positives ($\sim$1.4--2.8\% of benign):} dysplastic naevi
-($\sim$45\%), atypical Spitz ($\sim$22\%), irregular seborrhoeic keratoses
-($\sim$18\%). Exp.~1 detects 951/1021 melanomas (FN~rate 6.86\%), acceptable
+\textbf{False negatives ($\sim$7--8.5\% of malignant):} literature
+identifies amelanotic melanomas, small lesions ($<$6\,mm), and early
+superficial spreading melanomas as persistent DL failure
+modes~\cite{b15}---all subtypes that lack the pigmented features CNNs rely
+on. Our FN are consistent with these categories based on qualitative
+inspection. \textbf{False positives ($\sim$1.4--2.8\% of benign):}
+dysplastic naevi, atypical Spitz naevi, and irregular seborrhoeic keratoses
+are the most commonly confused benign subtypes in dermoscopy~\cite{b5}.
+Exp.~1 detects 951/1021 melanomas (FN~rate 6.86\%), acceptable
 for a screening tool complementing dermatologist review.
 
 % ------ IV-G: OOD ------
@@ -360,6 +369,7 @@ Exp.~1 -- Cosine & 1278.1 & 2652.3 \\
 Exp.~2 -- AdamW  & 1276.8 & 2648.7 \\
 Exp.~3 -- $\gamma$1.5 & 1275.3 & 2637.2 \\
 \bottomrule
+\multicolumn{3}{@{}l}{\footnotesize Exp.~4 omitted: image-only ablation, OOD stats not computed.}
 \end{tabular}
 \end{table}
 
@@ -384,7 +394,7 @@ A dual-branch EfficientNet-B0 melanoma classifier fusing dermoscopic images
 with patient metadata achieves F1$\,{=}\,$0.8984, recall$\,{=}\,$93.14\%
 (Exp.~1, best epoch~13), reducing missed melanomas by 12.5\% over Baseline
 with no additional FP. With TTA: F1$\,{=}\,$0.9134, recall$\,{=}\,$91.48\%,
-specificity$\,{=}\,$98.62\%. Ablation (Exp.~4) confirms metadata adds
+specificity$\,{=}\,$98.62\% (TTA trades 0.7~pp recall for 55 fewer FP). Ablation (Exp.~4) confirms metadata adds
 $+$1.9~pp recall; SHAP identifies \texttt{anatom\_site\_torso} and
 \texttt{age\_approx} as dominant predictors across all HP
 experiments. EigenCAM validates ABCDE-aligned attention. A Mahalanobis OOD
