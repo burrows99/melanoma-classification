@@ -230,15 +230,16 @@ utility on imbalanced data~\cite{b16}. Metadata adds $+$1.9~pp recall
 responds to anatomical-site cues absent from image features alone. TTA
 then trades 7 extra FN for 55 fewer FP
 (recall $92.16\%{\rightarrow}91.48\%$, F1$\,{=}\,$0.9134,
-specificity~98.62\%). Fig.~\ref{fig:ablation} confirms the recall advantage
-from the earliest epochs.
+specificity~98.62\%). Fig.~\ref{fig:ablation} confirms the recall advantage of the full fusion model
+from the earliest epochs, with Exp.~1 maintaining a consistent lead over the
+image-only ablation throughout all 20 epochs.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{ablation_curves.png}
 \caption{Validation F1 and recall over 20 epochs: image-only (Exp.~4) vs.\
-         Baseline (with metadata MLP). Metadata fusion provides a consistent
-         recall advantage throughout training.}
+         Exp.~1 (best model, with metadata MLP + cosine annealing). Metadata
+         fusion provides a consistent recall advantage throughout training.}
 \label{fig:ablation}
 \end{figure}
 
