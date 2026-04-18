@@ -144,14 +144,39 @@ class FileIOManager:
 
     @classmethod
     def list_available_runs(cls) -> list[str]:
-        """Return names of output dirs that contain a loadable checkpoint."""
+        """Return names of output dirs that contain a loadable checkpoint.
+
+        Falls back to querying the HF model repo when no local runs exist
+        (e.g. on Hugging Face Spaces where weights are downloaded on demand).
+        """
         runs: list[str] = []
-        if not cls._OUTPUT_ROOT.exists():
-            return runs
-        for d in sorted(cls._OUTPUT_ROOT.iterdir()):
-            if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._GRADCAM_FILENAME).exists():
-                runs.append(d.name)
+        if cls._OUTPUT_ROOT.exists():
+            for d in sorted(cls._OUTPUT_ROOT.iterdir()):
+                if d.is_dir() and (d / cls._WEIGHTS_SUBDIR / cls._GRADCAM_FILENAME).exists():
+                    runs.append(d.name)
+        if not runs:
+            runs = cls._list_runs_from_hf()
         return runs
+
+    @classmethod
+    def _list_runs_from_hf(cls) -> list[str]:
+        """Discover run names by listing the HF model repo."""
+        repo = cls._get_hf_repo()
+        if not repo:
+            return []
+        try:
+            from huggingface_hub import HfApi
+            api = HfApi()
+            files = api.list_repo_files(repo, repo_type="model")
+            runs: set[str] = set()
+            target = f"/{cls._WEIGHTS_SUBDIR}/{cls._GRADCAM_FILENAME}"
+            for f in files:
+                if f.endswith(target):
+                    runs.add(f.split("/")[0])
+            return sorted(runs)
+        except Exception as e:
+            logger.warning("Could not list runs from HF repo %s: %s", repo, e)
+            return []
 
     @staticmethod
     def image_path(data_dir: str, image_name: str) -> str:
