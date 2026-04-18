@@ -1,131 +1,96 @@
 # IV. Experiments
 
-## A. Experimental Setup
+## A. Setup
 
-All experiments are implemented in Python 3.12 using PyTorch with torchvision
-pretrained weights. Backbones are initialised with ImageNet-1k pretrained
-weights and fine-tuned end-to-end. No external data beyond the described
-dataset is used. All three models are trained under identical conditions—same
-hyperparameters, same augmentation pipeline, same data split—so that differences
-in outcomes are attributable solely to backbone architecture.
+All experiments use PyTorch with ImageNet-pretrained backbones fine-tuned for
+20 epochs. Identical data splits, augmentation, and evaluation across all
+configurations.
 
-## B. Incremental Method Ablation and Architecture Comparison
-
-Table I shows the individual contribution of each method component for
-EfficientNet-B0, from the focal-loss image-only baseline through to the final
-TTA-enabled system. Each row adds exactly one component so the marginal gain is
-unambiguous.
+## B. Incremental Ablation
 
 **Table I — Incremental Ablation: EfficientNet-B0**
 
-| Configuration                              | Val F1   | Val Recall | Val Acc  | Specificity | PPV      |
-|--------------------------------------------|:--------:|:----------:|:--------:|:-----------:|:--------:|
-| Image-only + focal loss α=0.864 (baseline) | 0.8928   | 88.7%†     | 97.15%†  | —           | —        |
-| + Metadata MLP (age, sex, anatom. site)    | 0.9076   | 90.89%     | 97.21%   | —           | —        |
-| + TTA (6 geometric transforms)             | **0.9134**| **91.48%**| **97.28%**| **98.62%** | **91.24%**|
-| Recall-optimised variant (high volatility) | 0.9050   | 92.26%     | 97.05%   | —           | —        |
+| Configuration                        | Val F1     | Recall  | Acc     | FN  | FP  |
+|--------------------------------------|:----------:|:-------:|:-------:|:---:|:---:|
+| Image-only (Exp 4)                   | 0.9000     | 90.30%  | 97.28%  | 99  | 106 |
+| + Metadata MLP                       | 0.8932     | 92.17%  | 97.01%  | 80  | 145 |
+| + TTA (6 transforms)                 | **0.9134** | 91.48%  | 97.28%  | 87  | 90  |
 
-†Derived: metadata integration improves recall by 2.8% (verified across configs).
-TN/FP for TTA-enabled: 6419/90. TP/FN: 934/87. FN rate: 8.52%.
+Metadata reduces FN from 99→80 (Δrecall=+1.9 pp). TTA reduces FP from 145→90
+yielding the best F1.
 
-Table II reports the best validation F1 per backbone, all trained identically
-under the full pipeline (focal loss + metadata + best hyperparameters), confirming
-EfficientNet-B0 as the optimal backbone.
+## C. Hyperparameter Search
 
-**Table II — CNN Backbone Comparison (Focal Loss + Metadata, Best Hyperparameters)**
+**Table II — HP Configurations: EfficientNet-B0**
 
-| Architecture    | F1 (default HPs) | F1 (optimised HPs) | Recall   | Inference (ms) |
-|-----------------|:----------------:|:------------------:|:--------:|:--------------:|
-| DenseNet-121    | 0.8969           | 0.8969             | 90.21%   | 17.8           |
-| **EfficientNet-B0** | 0.8928       | **0.9182**         | **91.48%**| **12.3**      |
-| ResNet-50       | 0.8669           | 0.8669             | 91.57%   | 15.4           |
+| Config               | Optim | Scheduler         | γ   | Val F1     | Recall  | Acc     |
+|----------------------|-------|-------------------|:---:|:----------:|:-------:|:-------:|
+| A — Baseline         | Adam  | None              | 2.0 | 0.8932     | 92.17%  | 97.01%  |
+| B — Cosine (Exp 1)   | Adam  | CosineAnnealing   | 2.0 | **0.8984** | 93.14%  | 97.14%  |
+| C — AdamW (Exp 2)    | AdamW | CosineAnnealing   | 2.0 | 0.8855     | **93.54%** | 96.72% |
+| D — γ=1.5 (Exp 3)    | AdamW | CosineAnnealing   | 1.5 | 0.8968     | 92.75%  | 97.10%  |
 
-EfficientNet-B0 achieves the strongest optimised F1 (0.9182 before TTA;
-0.9134 with comprehensive TTA). DenseNet-121 peaks early and shows no gain from
-hyperparameter tuning; ResNet-50 similarly plateaus and yields the lowest F1.
+| Config       | TP  | FN | FP  | TN   |
+|--------------|:---:|:--:|:---:|:----:|
+| A — Baseline | 941 | 80 | 145 | 6364 |
+| B — Exp 1    | 951 | 70 | 145 | 6364 |
+| C — Exp 2    | 955 | 66 | 181 | 6328 |
+| D — Exp 3    | 947 | 74 | 144 | 6365 |
 
-## C. Training Dynamics
+Config B (cosine annealing) achieves the highest F1 and reduces missed
+melanomas by 12.5% (70 vs 80) with zero additional false positives. Config C
+maximises recall (93.54%) but trades 36 extra FP. Config D recovers specificity
+(FP=144) while retaining recall gains.
 
-All three models initialise from F1 ~0.71–0.78 at epoch 1. **EfficientNet-B0**
-shows the smoothest trajectory: training loss falls from 0.0155 to 0.0055, with
-the train/val F1 gap below 0.02 throughout. **DenseNet-121** shows swings up to
-0.10 F1 points between consecutive epochs due to dense connectivity amplifying
-gradient noise under a fixed learning rate. **ResNet-50** converges stably but
-plateaus earliest. A coarse grid search over lr ∈ {1e-5, 1e-4, 1e-3}, batch
-∈ {16, 32, 48}, and γ ∈ {1.5, 2.0, 2.5} successfully identified EfficientNet-B0's
-optimal settings but the fixed-LR regime contributed to DenseNet-121's
-persistent instability. Cosine annealing is identified as a priority for
-future work.
+## D. Backbone Comparison
 
-## D. TTA Impact
+**Table III — CNN Backbone Comparison**
 
-TTA results are integrated into Table I above. Key observations: basic TTA
-(horizontal flip, 2× inference cost) gives a modest gain; comprehensive TTA
-(6 transforms, 6× cost) is the recommended configuration for clinical use,
-yielding F1=0.9134 and recall=91.48%. The recall-optimised configuration
-achieves the highest raw recall (92.26%) but with training instability that
-raises generalisation concerns and makes it unsuitable for deployment.
+| Architecture        | F1 (default) | F1 (optimised) | Recall   | Inference |
+|---------------------|:------------:|:--------------:|:--------:|:---------:|
+| **EfficientNet-B0** | 0.8932       | **0.8984**     | **93.14%** | **12.3 ms** |
+| DenseNet-121        | 0.8969       | 0.8969         | 90.21%   | 17.8 ms   |
+| ResNet-50           | 0.8669       | 0.8669         | 91.57%   | 15.4 ms   |
 
-## E. Error Analysis, Clinical Interpretation and OOD Robustness
+DenseNet-121 has the highest default F1 but shows no HP tuning gain due to
+gradient noise from dense connectivity (F1 swings up to 0.146). EfficientNet-B0
+is the only backbone benefiting from cosine annealing. AUC=0.99 for all three.
 
-Detailed error analysis of EfficientNet-B0's validation predictions reveals
-systematic patterns consistent with known diagnostic challenges in
-dermatology [18].
+## E. Training Dynamics
 
-**False Negatives (~7–8.5% of malignant cases):**
-- *Non-pigmented (amelanotic) melanomas* (~31%): these lesions lack the
-  characteristic dark pigmentation on which both human and algorithmic
-  classifiers rely most heavily, making them the single largest missed category.
-- *Small-diameter melanomas (<6 mm)* (~28%): at this scale, ABCDE criteria
-  (asymmetry, border, colour) are insufficiently developed to produce
-  discriminative feature maps.
-- *Early-stage superficial spreading type* (~23%): low colour contrast and
-  subtle border irregularity at early progression stages.
+EfficientNet-B0 shows the smoothest convergence: loss 0.0155→0.0054, train/val
+gap <0.32% at epoch 20. Cosine annealing (B–D) drives training metrics higher
+but widens the gap slightly (0.36–0.59%). Config D (γ=1.5) has the largest gap,
+consistent with softer focal loss allowing more memorisation.
 
-**False Positives (~1.4% of benign cases):**
-- *Severely dysplastic naevi* (~45%): unusual moles with morphological overlap
-  with early melanoma under dermoscopy.
-- *Atypical Spitz naevi* (~22%): a benign mole subtype that closely mimics
-  melanoma histologically and dermoscopically.
-- *Seborrhoeic keratoses with irregular pigmentation* (~18%): common benign
-  growths whose pigment distribution can resemble malignant colour variegation.
+## F. SHAP Feature Importance
 
-These error patterns confirm that the model learns clinically relevant
-discriminative features rather than dataset artefacts, and that its failure
-modes correspond to the cases that challenge experienced dermatologists [18, 19].
+SHAP KernelExplainer reveals consistent rankings across all metadata-enabled
+configs: (1) `anatom_site_torso` (dominant; positive SHAP when present),
+(2) `lower_extremity`, (3) `age_approx` (monotonic: older→higher risk),
+(4) `anterior_torso` (rare but high-impact outlier, SHAP up to 0.18).
+Sex features contribute modestly; `palms/soles` and `Unknown` are negligible.
+Config D compresses SHAP magnitudes, distributing importance more evenly.
 
-**Clinical translation.** In screening terms, the TTA-enabled configuration
-detects approximately 915 out of every 1000 melanomas (recall=91.48%) whilst
-flagging only 1.38% of benign lesions as suspicious (90/6509 FP). The FN rate
-of 8.52% (87/1021) is within acceptable bounds for a primary screening tool
-that complements, rather than replaces, dermatologist review. High specificity
-(98.62%) ensures resource-efficient referral patterns, minimising patient anxiety
-and unnecessary biopsy burden.
+## G. Error Analysis
 
-**Out-of-distribution (OOD) robustness.** A discriminative sigmoid classifier
-trained exclusively on dermoscopic images provides no guarantee of meaningful
-outputs for out-of-domain inputs. Passing an arbitrary image (e.g., a photograph
-of a car) through the model can produce a high malignancy probability because
-the CNN feature extractor projects all inputs—regardless of domain—into the same
-1280-dimensional feature space. Activations in that space may happen to resemble
-high-melanoma patterns by coincidence. This is a well-known failure mode of
-deep discriminative networks [Nguyen et al., 2015] and underscores that the
-system must only be used with dermoscopic images. Integrating an explicit OOD
-detector (e.g., a separate image-type classifier, or energy-based scoring) is a
-necessary precondition for any clinical deployment.
+**FN (~7–8.5% of malignant):** amelanotic melanomas (~31%), small <6 mm (~28%),
+early superficial spreading (~23%). **FP (~1.4–2.8% of benign):** dysplastic
+naevi (~45%), atypical Spitz (~22%), irregular seborrhoeic keratoses (~18%).
+Config B detects 951/1021 melanomas (FN rate=6.86%), within acceptable bounds
+for a screening tool complementing dermatologist review.
 
-## G. Model Interpretability — EigenCAM
+## H. OOD Robustness
 
-EigenCAM saliency maps were generated for EfficientNet-B0 predictions on the
-validation set. Visualisations confirm that the model's attention correctly
-localises to clinically relevant lesion regions:
-- Asymmetric borders and irregular edges (B criterion)
-- Areas of colour variegation within the lesion body (C criterion)
-- Structural patterns indicative of malignancy such as atypical pigment networks
+A Mahalanobis distance-based OOD detector [20] computes backbone feature
+statistics on the validation set. The empirical threshold (μ+3σ = 3247.5 for
+baseline; mean in-distribution distance=1277.4) flags non-dermoscopic inputs,
+enabling runtime warnings in the Gradio demo.
 
-This alignment between model attention and ABCDE criteria provides important
-validation that the decision-making process corresponds to dermatological
-expertise rather than spurious background correlations [5].
+## I. EigenCAM Interpretability
+
+Saliency maps confirm attention localises to asymmetric borders, colour
+variegation, and atypical pigment networks — aligning with ABCDE criteria [5].
 
 ---
 
