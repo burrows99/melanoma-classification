@@ -312,25 +312,21 @@ analysis (Table~\ref{tab:hp}) over AUC alone~\cite{b16}.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.48\columnwidth]{shap_baseline.png}
-\hfill
-\includegraphics[width=0.48\columnwidth]{shap_exp1.png}\\[4pt]
-\includegraphics[width=0.48\columnwidth]{shap_exp2.png}
-\hfill
-\includegraphics[width=0.48\columnwidth]{shap_exp3.png}
-\caption{SHAP beeswarm plots for Baseline and Exp.~1--3 (top-left to
-         bottom-right). \texttt{anatom\_site\_torso} and
-         \texttt{age\_approx} are the dominant predictors across all
-         configurations. Exp.~3 compresses SHAP magnitudes, distributing
-         importance more evenly.}
+\includegraphics[width=\columnwidth]{shap_exp1.png}
+\caption{SHAP beeswarm plot for Exp.~1 (best model). Feature importance is
+         ranked by mean $|$SHAP value$|$; colour indicates feature magnitude
+         (red = high, blue = low). \texttt{anatom\_site\_torso} and
+         \texttt{age\_approx} are the dominant predictors.}
 \label{fig:shap}
 \end{figure}
 
-SHAP KernelExplainer (Fig.~\ref{fig:shap}) reveals consistent rankings:
-\texttt{anatom\_site\_torso} (dominant), \texttt{age\_approx} (monotonic:
-older~$\rightarrow$~higher risk), and \texttt{anterior\_torso} (rare but
-high-impact, SHAP up to 0.18). Sex contributes modestly. Exp.~3
-($\gamma{=}1.5$) compresses magnitudes, distributing importance more evenly.
+SHAP KernelExplainer (Fig.~\ref{fig:shap}) reveals the metadata feature
+importance for Exp.~1 (best model). \texttt{anatom\_site\_torso} is the
+dominant predictor; \texttt{age\_approx} shows a monotonic relationship
+(older~$\rightarrow$~higher risk); \texttt{anterior\_torso} is rare but
+high-impact (SHAP up to 0.18). Sex contributes modestly. Feature rankings
+are consistent across all configurations; Exp.~3 ($\gamma{=}1.5$) is the
+only exception, compressing magnitudes and distributing importance more evenly.
 
 % ------ IV-F: Error Analysis ------
 \subsection{Error Analysis}\label{sec:error}
