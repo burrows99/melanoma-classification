@@ -154,5 +154,11 @@ class Evaluator:
         cov += 1e-5 * torch.eye(cov.shape[0])  # regularise for invertibility
         cov_inv = torch.linalg.inv(cov)
 
+        # Compute empirical threshold from validation distances
+        dists = (centered @ cov_inv * centered).sum(dim=1)
+        threshold = float(dists.mean() + 3 * dists.std())
+        logger.info("OOD distances — mean: %.1f, std: %.1f, threshold (μ+3σ): %.1f",
+                    dists.mean(), dists.std(), threshold)
+
         io = self._io or FileIOManager.for_run("default")
-        io.save_ood_stats(mean, cov_inv)
+        io.save_ood_stats(mean, cov_inv, threshold)

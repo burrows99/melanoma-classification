@@ -42,6 +42,8 @@ def _build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--train", action="store_true", help="Run training loop")
     mode.add_argument("--app",   action="store_true", help="Launch Gradio inference app")
+    mode.add_argument("--repair-ood", action="store_true", dest="repair_ood",
+                      help="Recompute OOD stats (with empirical threshold) for all saved runs")
 
     # --- Training config overrides ---
     parser.add_argument("--experiment", type=int, choices=[1, 2, 3, 4],
@@ -71,6 +73,55 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _repair_ood() -> None:
+    """Recompute OOD stats (with empirical threshold) for every saved run."""
+    import re as _re
+    from dataset import MelanomaDataLoaders
+    from model import MetadataMelanomaModel
+    from evaluate import Evaluator
+    from file_io_manager import FileIOManager
+
+    runs = FileIOManager.list_available_runs()
+    if not runs:
+        logger.error("No saved runs found in output/")
+        return
+
+    logger.info("Repairing OOD stats for runs: %s", runs)
+
+    # Build val loader once (shared across all runs)
+    Config.set_experiment(None)
+    loaders = MelanomaDataLoaders()
+    val_loader = loaders.get_val_loader()
+
+    for run_name in runs:
+        logger.info("── %s ──", run_name)
+        m = _re.match(r'^experiment(\d+)$', run_name)
+        Config.set_experiment(int(m.group(1)) if m else None)
+
+        io = FileIOManager.for_run(run_name)
+        try:
+            preprocessor = io.load_preprocessor()
+        except Exception:
+            logger.warning("  No preprocessor for %s — skipping", run_name)
+            continue
+
+        model = MetadataMelanomaModel.build(
+            num_metadata_features=preprocessor.num_output_features
+        )
+        try:
+            io.load_gradcam_checkpoint(model, map_location=Config.get_training_config()['device'])
+        except Exception:
+            logger.warning("  No gradcam.pth for %s — skipping", run_name)
+            continue
+
+        model.eval()
+        evaluator = Evaluator(model, MetadataMelanomaModel.get_criterion(), io=io)
+        evaluator.compute_ood_stats(val_loader)
+        logger.info("  ✓ %s done", run_name)
+
+    logger.info("All OOD stats repaired.")
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -92,6 +143,9 @@ def main() -> None:
         _ensure_dataset()
         from train import Trainer
         Trainer().train()
+    elif args.repair_ood:
+        _ensure_dataset()
+        _repair_ood()
     else:
         from app import App
         App().launch(share=args.share)

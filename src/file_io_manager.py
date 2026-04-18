@@ -130,11 +130,11 @@ class FileIOManager:
         """OOD feature statistics path."""
         return self._weights / self._OOD_STATS_FILENAME
 
-    def save_ood_stats(self, mean: torch.Tensor, cov_inv: torch.Tensor) -> Path:
-        """Save feature mean and inverse covariance for Mahalanobis OOD detection."""
+    def save_ood_stats(self, mean: torch.Tensor, cov_inv: torch.Tensor, threshold: float) -> Path:
+        """Save feature mean, inverse covariance, and empirical threshold for Mahalanobis OOD detection."""
         path = self.ood_stats_path()
-        torch.save({'mean': mean.cpu(), 'cov_inv': cov_inv.cpu()}, path)
-        logger.info("OOD feature stats saved to %s", path)
+        torch.save({'mean': mean.cpu(), 'cov_inv': cov_inv.cpu(), 'threshold': threshold}, path)
+        logger.info("OOD feature stats saved to %s (threshold=%.1f)", path, threshold)
         return path
 
     def load_ood_stats(self, map_location=None) -> dict:

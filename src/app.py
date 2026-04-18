@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class App:
-    _OOD_THRESHOLD = 100.0  # Mahalanobis distance above which input is flagged as non-skin-lesion
+    _OOD_THRESHOLD_FALLBACK = 2000.0  # fallback if saved threshold missing
 
     def __init__(self):
         self._device        = Config.get_training_config()['device']
@@ -30,6 +30,7 @@ class App:
         self._target_layers : dict                           = {}
         self._ood_mean      : torch.Tensor | None            = None
         self._ood_cov_inv   : torch.Tensor | None            = None
+        self._ood_threshold : float                          = self._OOD_THRESHOLD_FALLBACK
 
     def load_run(self, run_name: str) -> str:
         """Load a specific run (e.g. 'efficientnet_b0', 'experiment1')."""
@@ -85,7 +86,8 @@ class App:
             stats = io.load_ood_stats(map_location=self._device)
             self._ood_mean    = stats['mean'].to(self._device)
             self._ood_cov_inv = stats['cov_inv'].to(self._device)
-            logger.info("OOD stats loaded.")
+            self._ood_threshold = float(stats.get('threshold', self._OOD_THRESHOLD_FALLBACK))
+            logger.info("OOD stats loaded (threshold=%.1f).", self._ood_threshold)
         except Exception as e:
             logger.warning("OOD stats not available — OOD detection disabled: %s", e)
             self._ood_mean = None
@@ -132,7 +134,7 @@ class App:
                 metadata_tensor = self._prepare_metadata(age, sex, site)
 
             ood_dist = self._mahalanobis_distance(img_tensor)
-            if ood_dist is not None and ood_dist > self._OOD_THRESHOLD:
+            if ood_dist is not None and ood_dist > self._ood_threshold:
                 ood_warning = (f"⚠️ This image appears to be out-of-distribution "
                                f"(distance: {ood_dist:.0f}).\n"
                                f"The model is trained on skin lesion images only.\n\n")
