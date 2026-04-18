@@ -199,9 +199,15 @@ should not affect confidence; averaging removes orientation-specific noise
 and smooths the decision boundary. Impact in Section~\ref{sec:ablation}.
 
 \subsection{Evaluation}
-Accuracy, recall, specificity, PPV, and F1 on the validation split. Recall is
-the primary metric: missed melanomas carry substantially higher clinical cost
-than false alarms.
+Five metrics are reported on the validation split:
+\textbf{Recall} $= TP/(TP{+}FN)$: of all real cancers, how many did we catch.
+\textbf{Specificity} $= TN/(TN{+}FP)$: of all benign cases, how many were correctly cleared.
+\textbf{PPV} $= TP/(TP{+}FP)$: of everything flagged as cancer, how many actually were.
+\textbf{F1}: harmonic mean of PPV and recall---penalises models that sacrifice either.
+\textbf{Accuracy} is reported but not optimised: predicting benign always yields 86.4\%
+accuracy yet catches zero cancers, making it clinically meaningless on this dataset.
+Recall is the primary metric: a missed melanoma carries substantially higher
+clinical cost than a false alarm.
 
 % ===================================================================
 \section{Experiments}
