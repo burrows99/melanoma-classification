@@ -32,10 +32,10 @@ $0.8932{\rightarrow}0.8984$, false negatives reduced 12.5\%). An image-only
 ablation (Experiment~4) confirms metadata fusion adds $+$1.9 percentage
 points~(pp) recall; SHAP analysis identifies anatomical site and age as
 dominant predictors. With six-transform test-time augmentation (TTA) the
-system
-achieves F1$\,{=}\,$0.9134, recall$\,{=}\,$91.48\%,
-specificity$\,{=}\,$98.62\%. EigenCAM validates ABCDE-aligned attention and a
-Mahalanobis out-of-distribution (OOD) detector flags non-dermoscopic inputs.
+system achieves F1$\,{=}\,$0.9134, recall$\,{=}\,$91.48\%,
+specificity$\,{=}\,$98.62\% (two-transform eval TTA on Baseline;
+Gradio demo uses six transforms). EigenCAM validates ABCDE-aligned
+attention and a Mahalanobis OOD detector flags non-dermoscopic inputs.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -192,11 +192,12 @@ Exp.~4\textsuperscript{$\dagger$} (no meta) & Adam & None & 2.0 & --- & 0.9000 &
 \end{table}
 
 \subsection{Test-Time Augmentation}
-At inference, six geometric transforms (original, h-flip, v-flip,
-90$^\circ$/180$^\circ$/270$^\circ$ rotation) are applied and their
-predictions averaged. Lesions are rotationally symmetric, so orientation
-should not affect confidence; averaging removes orientation-specific noise
-and smooths the decision boundary. Impact in Section~\ref{sec:ablation}.
+During evaluation, two geometric transforms (original and horizontal flip)
+are averaged to reduce orientation-specific variance. The Gradio demo
+extends this to six transforms (original, h-flip, v-flip,
+90$^\circ$/180$^\circ$/270$^\circ$ rotation), exploiting the rotational
+symmetry of dermoscopic lesions. Evaluation-pipeline TTA impact is reported
+in Section~\ref{sec:ablation}.
 
 \subsection{Evaluation}
 Five metrics are reported on the validation split:
@@ -227,12 +228,16 @@ patients undetected. At 13.6\% prevalence, 19 extra misses barely register
 across 7{,}530 examples, illustrating why accuracy overstates clinical
 utility on imbalanced data~\cite{b16}. Metadata adds $+$1.9~pp recall
 (FN: $99{\rightarrow}80$) at the cost of 39 extra FP, because the MLP
-responds to anatomical-site cues absent from image features alone. TTA
-then trades 7 extra FN for 55 fewer FP
+responds to anatomical-site cues absent from image features alone.
+Fig.~\ref{fig:ablation} extends this comparison to the best model
+(Exp.~1), confirming that Exp.~1 maintains a consistent recall lead over
+the image-only ablation across all 20 epochs.
+
+Two-transform TTA (original + h-flip) applied to the Baseline model
+trades 7 extra FN for 55 fewer FP
 (recall $92.16\%{\rightarrow}91.48\%$, F1$\,{=}\,$0.9134,
-specificity~98.62\%). Fig.~\ref{fig:ablation} confirms the recall advantage of the full fusion model
-from the earliest epochs, with Exp.~1 maintaining a consistent lead over the
-image-only ablation throughout all 20 epochs.
+specificity~98.62\%), tightening the decision boundary at a small
+sensitivity cost.
 
 \begin{figure}[t]
 \centering
@@ -247,37 +252,18 @@ image-only ablation throughout all 20 epochs.
 \subsection{Hyperparameter Search}\label{sec:hpsearch}
 
 The five experiments form a deliberate chain (Table~\ref{tab:hp}).
-\textbf{Exp.~1} (cosine annealing): the LR decays to near-zero by epoch~20,
-letting the model settle into a sharper minimum---FN drops $80{\rightarrow}70$
-with \emph{zero} extra FP, a ``free lunch.''
-\textbf{Exp.~2} (AdamW): weight decay broadens the decision boundary, peaking
-recall at 93.54\% but surging FP from 145 to 181.
-\textbf{Exp.~3} ($\gamma{=}1.5$): less aggressive focal suppression restores
-specificity---FP falls to 144 (lowest of fusion models) while FN rises
-modestly to 74.
-
-Table~\ref{tab:deltas} isolates the individual contribution of each change
-by reporting deltas relative to the immediately preceding configuration.
-
-\begin{table}[t]
-\caption{Isolated contribution of each design change. $\Delta$ values are
-         relative to the prior configuration. Recall and F1 from
-         best-checkpoint results.}
-\label{tab:deltas}
-\centering
-\small
-\begin{tabular}{@{}llrrrr@{}}
-\toprule
-\textbf{Change} & \textbf{vs.} & $\boldsymbol{\Delta}$\textbf{F1} & $\boldsymbol{\Delta}$\textbf{Recall} & $\boldsymbol{\Delta}$\textbf{FN} & $\boldsymbol{\Delta}$\textbf{FP} \\
-\midrule
-Cosine sched.   & Baseline  & $+$0.0052 & $+$0.98\,pp & $-$10 & $\phantom{+}$0 \\
-AdamW + WD      & Exp.~1    & $-$0.0129 & $+$0.40\,pp & $-$4  & $+$36 \\
-$\gamma$1.5     & Exp.~2    & $+$0.0113 & $-$0.79\,pp & $+$8  & $-$37 \\
-Metadata fusion & Exp.~4    & $-$0.0068 & $+$1.86\,pp & $-$19 & $+$39 \\
-TTA (6 xforms)  & Baseline  & $+$0.0202 & $-$0.68\,pp & $+$7  & $-$55 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Exp.~1} (cosine annealing): FN drops $80{\rightarrow}70$ with
+\emph{zero} extra FP ($\Delta$F1$\,{=}\,{+}$0.0052) — the strongest
+single improvement.
+\textbf{Exp.~2} (AdamW): peaks recall at 93.54\% but surges FP 145$\to$181
+($\Delta$F1$\,{=}\,{-}$0.0129), broadening the decision boundary.
+\textbf{Exp.~3} ($\gamma{=}1.5$): restores specificity — FP falls to 144
+($\Delta$F1$\,{=}\,{+}$0.0113) while FN rises modestly to 74.
+Metadata fusion (Baseline vs.\ Exp.~4) adds $+$1.9~pp recall (19 fewer
+missed cancers) at the cost of 39 extra FP; the $\Delta$F1 of $-$0.0068
+reflects increased FP, not worse cancer detection.
+Two-transform TTA on the Baseline adds $\Delta$F1$\,{=}\,{+}$0.0202,
+trading 7 extra FN for 55 fewer FP.
 
 % ------ IV-C: Training Dynamics ------
 \subsection{Training Dynamics}\label{sec:dynamics}
@@ -300,13 +286,8 @@ best-checkpoint selection by validation F1 ensures reported results are
 not sensitive to epoch-to-epoch variance. Exp.~3 ($\gamma{=}1.5$) shows
 the largest gap; Exp.~1 achieves the best trade-off.
 
-% ------ IV-D: ROC ------
-\subsection{Discriminative Performance}
-
-All five experiments achieve AUC$\,{=}\,$0.99,
-confirming that HP variations affect the precision--recall operating point
-rather than underlying ranking ability. This motivates confusion-matrix-level
-analysis (Table~\ref{tab:hp}) over AUC alone~\cite{b16}.
+All five experiments achieve AUC$\,{=}\,$0.99, confirming HP variations affect
+the precision--recall operating point rather than ranking ability~\cite{b16}.
 
 % ------ IV-E: SHAP ------
 \subsection{SHAP Feature Importance}
@@ -342,43 +323,42 @@ naevi, and irregular seborrhoeic keratoses~\cite{b5}. Exp.~1 achieves a
 % ------ IV-G: OOD ------
 \subsection{OOD Robustness}
 
-\begin{table}[t]
-\caption{Mahalanobis OOD Thresholds per Configuration}
-\label{tab:ood}
-\centering
-\small
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Experiment} & \textbf{Mean dist.\ ($\mu$)} & \textbf{Threshold ($\mu{+}3\sigma$)} \\
-\midrule
-Baseline         & 1277.4 & 3247.5 \\
-Exp.~1 -- Cosine & 1278.1 & 2652.3 \\
-Exp.~2 -- AdamW  & 1276.8 & 2648.7 \\
-Exp.~3 -- $\gamma$1.5 & 1275.3 & 2637.2 \\
-\bottomrule
-\multicolumn{3}{@{}l}{\footnotesize Exp.~4 omitted: image-only ablation, OOD stats not computed.}
-\end{tabular}
-\end{table}
-
 A Mahalanobis distance-based OOD detector~\cite{b19} computes $\mu$ and
-$\Sigma^{-1}$ of the backbone's 1280-d validation features; inputs whose
-feature vectors lie beyond $\mu{+}3\sigma$ (Table~\ref{tab:ood}) are
-flagged. Without this gate, a non-dermoscopic image (e.g.\ a car) can
-yield high sigmoid confidence: sigmoid heads trained only on dermoscopic
-images have no explicit abstain mechanism, so out-of-distribution inputs
-that activate similar low-level CNN filters (edges, colour gradients) can
-align with malignant-class weights and produce misleadingly high logits.
-The Mahalanobis check operates on the 1280-d embedding rather than the
-output logit, intercepting these cases by detecting that the feature
-vector lies outside the dermoscopic distribution. Exp.~1--3 produce
-tighter distributions, suggesting cosine annealing yields more compact
-feature representations.
+$\Sigma^{-1}$ of the backbone's 1280-d validation features; inputs beyond
+$\mu{+}3\sigma$ are flagged. Thresholds range from 2637 (Exp.~3) to 3248
+(Baseline); cosine-annealed models produce tighter feature distributions.
+Without this gate, non-dermoscopic inputs activate similar low-level CNN
+filters and align with malignant-class weights, yielding misleadingly high
+confidence---Fig.~\ref{fig:ood} demonstrates a koala scoring distance 5124
+($\gg$ threshold 2652) yet receiving 85.8\% malignant from the raw sigmoid.
+The detector intercepts at the embedding level before the logit is trusted.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{ood_example.png}
+\caption{OOD detection in the Gradio demo (Exp.~1). A koala photograph
+         yields Mahalanobis distance 5124, far exceeding the threshold of
+         2652. The system issues an OOD warning; without it the unconstrained
+         sigmoid head assigns 85.8\% malignant confidence.}
+\label{fig:ood}
+\end{figure}
 
 % ------ IV-H: EigenCAM ------
 \subsection{EigenCAM Interpretability}
-EigenCAM saliency maps confirm attention localises to asymmetric borders,
-colour variegation, and atypical pigment networks, aligning with clinical
-ABCDE criteria~\cite{b4}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eigencam_example.png}
+\caption{EigenCAM overlay for a malignant lesion (Exp.~1). Left: original
+         dermoscopic image. Right: activation heatmap---attention concentrates
+         on asymmetric border and colour variegation, consistent with clinical
+         ABCDE criteria~\cite{b4}.}
+\label{fig:eigencam}
+\end{figure}
+
+EigenCAM (Fig.~\ref{fig:eigencam}) saliency maps confirm attention localises
+to asymmetric borders, colour variegation, and atypical pigment networks,
+aligning with clinical ABCDE criteria~\cite{b4}.
 
 % ===================================================================
 \section{Conclusion and Future Work}
@@ -387,8 +367,10 @@ ABCDE criteria~\cite{b4}.
 A dual-branch EfficientNet-B0 melanoma classifier fusing dermoscopic images
 with patient metadata achieves F1$\,{=}\,$0.8984, recall$\,{=}\,$93.14\%
 (Exp.~1, best epoch~13), reducing missed melanomas by 12.5\% over Baseline
-with no additional FP. With TTA: F1$\,{=}\,$0.9134, recall$\,{=}\,$91.48\%,
-specificity$\,{=}\,$98.62\% (TTA trades 0.7~pp recall for 55 fewer FP). Ablation (Exp.~4) confirms metadata adds
+with no additional FP. Two-transform TTA (original + h-flip) on the Baseline achieves
+F1$\,{=}\,$0.9134, recall$\,{=}\,$91.48\%, specificity$\,{=}\,$98.62\%
+(trades 0.7~pp recall for 55 fewer FP; the Gradio demo extends this to
+six transforms). Ablation (Exp.~4) confirms metadata adds
 $+$1.9~pp recall; SHAP identifies \texttt{anatom\_site\_torso} and
 \texttt{age\_approx} as dominant predictors across all HP
 experiments. EigenCAM validates ABCDE-aligned attention. A Mahalanobis OOD
