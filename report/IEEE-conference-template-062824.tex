@@ -200,23 +200,17 @@ symmetry of dermoscopic lesions. Evaluation-pipeline TTA impact is reported
 in Section~\ref{sec:ablation}.
 
 \subsection{Evaluation}
-Five metrics are reported on the validation split:
-\textbf{Recall} $= TP/(TP{+}FN)$: of all real cancers, how many did we catch.
-\textbf{Specificity} $= TN/(TN{+}FP)$: of all benign cases, how many were correctly cleared.
-\textbf{PPV} $= TP/(TP{+}FP)$: of everything flagged as cancer, how many actually were.
-\textbf{F1}: harmonic mean of PPV and recall---penalises models that sacrifice either.
-\textbf{Accuracy} is reported but not optimised: predicting benign always yields 86.4\%
-accuracy yet catches zero cancers, making it clinically meaningless on this dataset.
-Recall is the primary metric: a missed melanoma carries substantially higher
-clinical cost than a false alarm.
+Five metrics are reported: \textbf{Recall}$\,{=}\,TP/(TP{+}FN)$,
+\textbf{Specificity}$\,{=}\,TN/(TN{+}FP)$, \textbf{PPV}$\,{=}\,TP/(TP{+}FP)$,
+\textbf{F1} (harmonic mean of PPV and recall), and \textbf{Accuracy} (reported
+but not optimised---an all-benign predictor achieves 86.4\% yet catches zero
+cancers). Recall is primary: a missed melanoma costs far more than a false alarm.
 
 % ===================================================================
 \section{Experiments}
 % ===================================================================
 
-All experiments use PyTorch 2.x with the EfficientNet-B0 backbone fine-tuned
-for up to 20~epochs. Identical data splits, augmentation pipelines, and
-evaluation code are shared across all configurations.
+All experiments use PyTorch 2.x, identical data splits, augmentation pipelines, and evaluation code.
 
 % ------ IV-A: Ablation ------
 \subsection{Incremental Ablation}\label{sec:ablation}
@@ -226,12 +220,10 @@ Its accuracy (97.28\%) and raw F1 (0.9000) look strong, but the confusion
 matrix reveals the cost: 99 missed melanomas versus Baseline's 80---19 more
 patients undetected. At 13.6\% prevalence, 19 extra misses barely register
 across 7{,}530 examples, illustrating why accuracy overstates clinical
-utility on imbalanced data~\cite{b16}. Metadata adds $+$1.9~pp recall
-(FN: $99{\rightarrow}80$) at the cost of 39 extra FP, because the MLP
-responds to anatomical-site cues absent from image features alone.
-Fig.~\ref{fig:ablation} extends this comparison to the best model
-(Exp.~1), confirming that Exp.~1 maintains a consistent recall lead over
-the image-only ablation across all 20 epochs.
+utility on imbalanced data~\cite{b16}. Metadata adds $+$1.9~pp recall (FN: $99{\rightarrow}80$) at the cost of
+39 extra FP, as the MLP responds to anatomical-site cues absent from
+image features alone. Fig.~\ref{fig:ablation} confirms Exp.~1 maintains
+a consistent recall lead over the image-only ablation across all 20 epochs.
 
 Two-transform TTA (original + h-flip) applied to the Baseline model
 trades 7 extra FN for 55 fewer FP
@@ -280,14 +272,11 @@ trading 7 extra FN for 55 fewer FP.
 
 Fig.~\ref{fig:training} overlays training dynamics. Baseline converges
 smoothly (loss $0.0152{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
-(Exp.~1--3) drives loss lower but widens the gap (0.36--0.59\%), reflecting
-focal loss sensitivity to class boundaries on an imbalanced dataset;
-best-checkpoint selection by validation F1 ensures reported results are
-not sensitive to epoch-to-epoch variance. Exp.~3 ($\gamma{=}1.5$) shows
-the largest gap; Exp.~1 achieves the best trade-off.
-
-All five experiments achieve AUC$\,{=}\,$0.99, confirming HP variations affect
-the precision--recall operating point rather than ranking ability~\cite{b16}.
+(Exp.~1--3) drives loss lower but widens the train/val gap (0.36--0.59\%);
+best-checkpoint selection by validation F1 mitigates this. Exp.~3 shows the
+largest gap; Exp.~1 achieves the best trade-off. All five experiments reach
+AUC$\,{=}\,$0.99, confirming HP changes affect the precision--recall
+operating point rather than ranking ability~\cite{b16}.
 
 % ------ IV-E: SHAP ------
 \subsection{SHAP Feature Importance}
@@ -313,12 +302,23 @@ only exception, compressing magnitudes and distributing importance more evenly.
 % ------ IV-F: Error Analysis ------
 \subsection{Error Analysis}\label{sec:error}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\columnwidth]{confusion_matrix_exp1.png}
+\hfill
+\includegraphics[width=0.48\columnwidth]{roc_curve_exp1.png}
+\caption{Exp.~1 (best model): confusion matrix (left) and ROC curve
+         (right, AUC$\,{=}\,$0.99). The confusion matrix confirms
+         70~FN and 145~FP from 7{,}530 validation samples.}
+\label{fig:cm_roc}
+\end{figure}
+
 \textbf{FN ($\sim$7--8.5\% of malignant):} amelanotic melanomas, small
 lesions ($<$6\,mm), and early superficial spreading variants---subtypes
 lacking the pigmented features CNNs rely on~\cite{b15}.
 \textbf{FP ($\sim$1.4--2.8\% of benign):} dysplastic naevi, atypical Spitz
 naevi, and irregular seborrhoeic keratoses~\cite{b5}. Exp.~1 achieves a
-6.86\% FN rate, acceptable for a screening tool.
+6.86\% FN rate (Fig.~\ref{fig:cm_roc}), acceptable for a screening tool.
 
 % ------ IV-G: OOD ------
 \subsection{OOD Robustness}
