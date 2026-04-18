@@ -71,10 +71,8 @@ controlled hyperparameter (HP) studies (Section~\ref{sec:dynamics}).
       scheduler, optimiser, focal~$\gamma$, and metadata fusion, with
       per-experiment analysis of false-negative / false-positive
       trade-offs.
-\item $+$1.9~pp recall from metadata fusion (measured ablation) with
-      per-feature SHAP importance analysis.
-\item Error analysis, EigenCAM interpretability, and Mahalanobis OOD
-      detection with empirical thresholds.
+\item Measured ablation ($+$1.9~pp recall from metadata), per-feature SHAP
+      analysis, error analysis, EigenCAM saliency, and Mahalanobis OOD.
 \end{enumerate}
 
 \noindent\textbf{Out of scope:} Vision Transformers~\cite{b17,b18} (require
@@ -99,12 +97,14 @@ lack of translation equivariance~\cite{b17}; CNNs with ImageNet pretraining
 remain pragmatic at this scale.
 
 \subsection{Class Imbalance and Focal Loss}
-Focal loss~\cite{b11} modulates cross-entropy by $(1-p_t)^\gamma$,
-down-weighting easy negatives to concentrate gradient on hard examples.
-The focusing parameter~$\gamma$ controls down-weighting strength. Setting
-$\alpha = 1 - 0.136 = 0.864$ compensates for the 13.6\% malignant
-prevalence. We examine the effect of varying~$\gamma$ in
-Section~\ref{sec:hpsearch}.
+With 6.4 benign examples per malignant, standard cross-entropy steers
+gradients toward the majority class so the network can ignore rare positives
+and still minimise loss. Focal loss~\cite{b11} multiplies the per-example
+loss by $(1-p_t)^\gamma$: confident, correct predictions contribute nearly
+zero gradient; uncertain or wrong predictions receive amplified signal,
+forcing attention onto hard malignant cases. Setting
+$\alpha{=}1{-}0.136{=}0.864$ further upweights malignant examples.
+Effect of varying~$\gamma$ is in Section~\ref{sec:hpsearch}.
 
 \subsection{Metadata Fusion, TTA, and Limitations}
 Pacheco et~al.~\cite{b12} curate a multimodal skin lesion dataset pairing
@@ -135,14 +135,23 @@ ImageNet normalisation). \textbf{Images (val):} resize + normalise only.
 one-hot for categoricals $\rightarrow$ \textbf{14-d} vector.
 
 \subsection{Architecture}
-A dual-branch late-fusion model: (1)~an ImageNet-pretrained
+A dual-branch late-fusion model (Fig.~\ref{fig:arch}): (1)~an ImageNet-pretrained
 \textbf{EfficientNet-B0} backbone ($\rightarrow$ 1280-d embedding) with the
 classification head removed; (2)~a two-layer metadata MLP
 ($14{\rightarrow}128{\rightarrow}64$, BatchNorm + ReLU + Dropout~0.3).
-The 1280-d image embedding and 64-d metadata embedding are concatenated
-($\rightarrow$ 1344-d) and projected through a linear head to a single logit.
-An image-only ablation mode disables the metadata branch to isolate its
-contribution.
+Late fusion is chosen because images and clinical scalars benefit from
+separate processing before being combined.
+The 1280-d and 64-d embeddings are concatenated ($\rightarrow$ 1344-d) and
+projected to a single logit. Exp.~4 disables the metadata branch to isolate
+its contribution.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\columnwidth]{architecture.png}
+\caption{Dual-branch pipeline: EfficientNet-B0 image branch and metadata MLP
+         are fused via late concatenation, trained end-to-end with focal loss.}
+\label{fig:arch}
+\end{figure}
 
 \subsection{Loss and Training}
 Sigmoid focal loss~\cite{b11}:
@@ -154,21 +163,12 @@ with $\alpha{=}0.864$, $\gamma{=}2.0$. We define five experiments
 (Table~\ref{tab:hp}), each introducing \emph{one primary change} so every
 factor can be isolated:
 %
-\textbf{Baseline} — Adam, fixed LR, $\gamma{=}2.0$, with metadata; a
-minimal-tricks reference.
-%
-\textbf{Exp.~1} adds cosine-annealing LR scheduling to help the model settle
-into sharper minima and improve F1 without extra FP.
-%
-\textbf{Exp.~2} replaces Adam with AdamW (decoupled weight decay $10^{-5}$)
-to reduce overfitting on the minority class and boost recall.
-%
-\textbf{Exp.~3} lowers $\gamma$ from 2.0 to 1.5, down-weighting easy
-negatives less aggressively to recover specificity lost from the broader
-decision boundary in Exp.~2.
-%
-\textbf{Exp.~4} disables the metadata MLP (same HP as Baseline) to quantify
-the exact contribution of metadata fusion.
+\textbf{Baseline}~(Adam, fixed LR, $\gamma{=}2.0$): minimal-tricks reference.
+\textbf{Exp.~1}~adds cosine annealing to settle into sharper minima (higher F1, no new FP).
+\textbf{Exp.~2}~Adam$\to$AdamW + weight decay $10^{-5}$ to curb minority-class overfitting.
+\textbf{Exp.~3}~lowers $\gamma$ to 1.5, reducing suppression of easy negatives to recover
+specificity lost when Exp.~2 widened the decision boundary.
+\textbf{Exp.~4}~disables metadata MLP (image-only ablation).
 %
 The checkpoint with the highest validation F1 is retained.
 
@@ -192,8 +192,11 @@ LR / Batch / Epochs & \multicolumn{5}{c}{$10^{-4}$ / 32 / 20} \\
 \end{table}
 
 \subsection{Test-Time Augmentation}
-Six geometric transforms (original, h-flip, v-flip, 90$^\circ$/180$^\circ$/270$^\circ$
-rotation) averaged at inference. Impact evaluated in Section~\ref{sec:ablation}.
+At inference, six geometric transforms (original, h-flip, v-flip,
+90$^\circ$/180$^\circ$/270$^\circ$ rotation) are applied and their
+predictions averaged. Lesions are rotationally symmetric, so orientation
+should not affect confidence; averaging removes orientation-specific noise
+and smooths the decision boundary. Impact in Section~\ref{sec:ablation}.
 
 \subsection{Evaluation}
 Accuracy, recall, specificity, PPV, and F1 on the validation split. Recall is
@@ -212,16 +215,17 @@ evaluation code are shared across all configurations.
 \subsection{Incremental Ablation}\label{sec:ablation}
 
 Exp.~4 (image-only, same HP as Baseline) isolates the metadata branch.
-Comparing rows in Table~\ref{tab:hpsearch}: metadata reduces FN from 99 to
-80 ($\Delta$recall$\,{=}\,{+}$1.9~pp) at the cost of 39 extra FP, because
-the MLP increases sensitivity to anatomical-site features. TTA then reduces
-FP from 145 to 90, yielding F1$\,{=}\,$0.9134 (specificity~98.62\%).
-Notably, TTA trades 0.7~pp recall (92.16\%$\,{\rightarrow}\,$91.48\%) for
-55 fewer false positives, improving F1 and specificity at a small sensitivity
-cost---an acceptable trade-off for a screening tool where FP burden also
-matters.
-Fig.~\ref{fig:ablation} confirms metadata fusion consistently improves
-recall from the earliest epochs.
+Its accuracy (97.28\%) and raw F1 (0.9000) look strong, but the confusion
+matrix reveals the cost: 99 missed melanomas versus Baseline's 80---19 more
+patients undetected. At 13.6\% prevalence, 19 extra misses barely register
+across 7{,}530 examples, illustrating why accuracy overstates clinical
+utility on imbalanced data~\cite{b16}. Metadata adds $+$1.9~pp recall
+(FN: $99{\rightarrow}80$) at the cost of 39 extra FP, because the MLP
+responds to anatomical-site cues absent from image features alone. TTA
+then trades 7 extra FN for 55 fewer FP
+(recall $92.16\%{\rightarrow}91.48\%$, F1$\,{=}\,$0.9134,
+specificity~98.62\%). Fig.~\ref{fig:ablation} confirms the recall advantage
+from the earliest epochs.
 
 \begin{figure}[t]
 \centering
@@ -254,19 +258,19 @@ Exp.~4\textsuperscript{$\dagger$} & 0.9000 & 90.30\% & \textbf{97.28\%} & 922 & 
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:hpsearch} compares all five experiments at their best
-checkpoints. \textbf{Exp.~1} (cosine annealing, best epoch~13) achieves the
-highest F1 (0.8984) and reduces missed melanomas by 12.5\% (FN:
-$80{\rightarrow}70$) with \emph{zero} additional FP relative to Baseline
-(best epoch~8). \textbf{Exp.~2} (AdamW, best epoch~20) maximises recall at
-93.54\% but trades 36 extra FP (181 vs.\ 145)---weight decay broadens the
-decision boundary, increasing sensitivity at the cost of specificity.
-\textbf{Exp.~3} ($\gamma{=}1.5$, best epoch~7) recovers specificity
-(FP$\,{=}\,$144, lowest among fusion models) while retaining most recall
-gain over Baseline. \textbf{Exp.~4} (image-only, best epoch~20) achieves the
-highest accuracy (97.28\%) and lowest FP~(106) but misses 19 more melanomas
-than Baseline (FN: $80{\rightarrow}99$), confirming that metadata fusion
-trades precision for clinically valuable recall.
+The five experiments form a deliberate chain (Table~\ref{tab:hpsearch}).
+\textbf{Exp.~1:} does a smarter LR schedule help? With a fixed LR the
+optimiser overshoots the best loss valley; cosine annealing decays it to
+near-zero by epoch~20, letting the model settle. Payoff: FN drops
+$80{\rightarrow}70$ with \emph{zero} extra FP---a ``free lunch.'' 
+\textbf{Exp.~2:} does weight decay push recall further? AdamW penalises
+large weights, broadening the decision boundary so borderline lesions get
+flagged. Recall peaks at 93.54\% (FN$\,{=}\,$66) but false alarms surge
+(FP: $145{\rightarrow}181$).
+\textbf{Exp.~3:} can the focal loss recover those FPs? Reducing $\gamma$
+from 2.0 to 1.5 gives easy benign examples more gradient influence,
+sharpening the boundary. FP falls to 144 (lowest of fusion models) while
+FN rises to 74.
 
 Fig.~\ref{fig:cm} shows the confusion matrices for all five experiments,
 visually confirming that Exp.~1--3 shift mass from FN toward TP relative to
@@ -310,16 +314,7 @@ smoothly (loss $0.0152{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
 % ------ IV-D: ROC ------
 \subsection{Discriminative Performance}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\columnwidth]{roc_curve_exp1.png}
-\caption{ROC curve for Exp.~1 (best F1). All five experiments achieve
-         AUC$\,{=}\,$0.99; only Exp.~1 is shown as the curves are visually
-         identical.}
-\label{fig:roc}
-\end{figure}
-
-All five experiments achieve AUC$\,{=}\,$0.99 (Fig.~\ref{fig:roc}),
+All five experiments achieve AUC$\,{=}\,$0.99,
 confirming that HP variations affect the precision--recall operating point
 rather than underlying ranking ability. This motivates confusion-matrix-level
 analysis (Table~\ref{tab:hpsearch}) over AUC alone~\cite{b16}.
@@ -343,27 +338,21 @@ analysis (Table~\ref{tab:hpsearch}) over AUC alone~\cite{b16}.
 \label{fig:shap}
 \end{figure}
 
-SHAP KernelExplainer (Fig.~\ref{fig:shap}) reveals consistent feature
-rankings across all four metadata-enabled experiments (Baseline, Exp.~1--3):
-\texttt{anatom\_site\_torso} (dominant), \texttt{lower\_extremity},
-\texttt{age\_approx} (monotonic: older~$\rightarrow$~higher risk), and
-\texttt{anterior\_torso} (rare, high-impact outlier, SHAP up to 0.18).
-Sex features contribute modestly. Exp.~3 ($\gamma{=}1.5$) compresses SHAP
-magnitudes, distributing importance more evenly.
+SHAP KernelExplainer (Fig.~\ref{fig:shap}) reveals consistent rankings:
+\texttt{anatom\_site\_torso} (dominant), \texttt{age\_approx} (monotonic:
+older~$\rightarrow$~higher risk), and \texttt{anterior\_torso} (rare but
+high-impact, SHAP up to 0.18). Sex contributes modestly. Exp.~3
+($\gamma{=}1.5$) compresses magnitudes, distributing importance more evenly.
 
 % ------ IV-F: Error Analysis ------
 \subsection{Error Analysis}\label{sec:error}
 
-\textbf{False negatives ($\sim$7--8.5\% of malignant):} literature
-identifies amelanotic melanomas, small lesions ($<$6\,mm), and early
-superficial spreading melanomas as persistent DL failure
-modes~\cite{b15}---all subtypes that lack the pigmented features CNNs rely
-on. Our FN are consistent with these categories based on qualitative
-inspection. \textbf{False positives ($\sim$1.4--2.8\% of benign):}
-dysplastic naevi, atypical Spitz naevi, and irregular seborrhoeic keratoses
-are the most commonly confused benign subtypes in dermoscopy~\cite{b5}.
-Exp.~1 detects 951/1021 melanomas (FN~rate 6.86\%), acceptable
-for a screening tool complementing dermatologist review.
+\textbf{FN ($\sim$7--8.5\% of malignant):} amelanotic melanomas, small
+lesions ($<$6\,mm), and early superficial spreading variants---subtypes
+lacking the pigmented features CNNs rely on~\cite{b15}.
+\textbf{FP ($\sim$1.4--2.8\% of benign):} dysplastic naevi, atypical Spitz
+naevi, and irregular seborrhoeic keratoses~\cite{b5}. Exp.~1 achieves a
+6.86\% FN rate, acceptable for a screening tool.
 
 % ------ IV-G: OOD ------
 \subsection{OOD Robustness}
@@ -387,11 +376,11 @@ Exp.~3 -- $\gamma$1.5 & 1275.3 & 2637.2 \\
 \end{table}
 
 A Mahalanobis distance-based OOD detector~\cite{b19} computes $\mu$ and
-$\Sigma^{-1}$ of the backbone's 1280-d features on the validation set;
-inputs exceeding $\mu{+}3\sigma$ (Table~\ref{tab:ood}) trigger a warning.
-A car photograph, for example, is correctly flagged as OOD. Exp.~1--3
-produce tighter distributions than Baseline, suggesting cosine annealing
-yields more compact representations.
+$\Sigma^{-1}$ of the backbone's 1280-d validation features; inputs whose
+feature vectors lie beyond $\mu{+}3\sigma$ (Table~\ref{tab:ood}) are
+flagged---a non-dermoscopic image (e.g.~a car) sits far from the dermoscopy
+cluster and is correctly rejected. Exp.~1--3 produce tighter distributions,
+suggesting cosine annealing yields more compact feature representations.
 
 % ------ IV-H: EigenCAM ------
 \subsection{EigenCAM Interpretability}
@@ -424,9 +413,9 @@ demo is deployed at
 enabling browser-based inference with EigenCAM overlays and OOD detection.
 
 \smallskip\noindent\textbf{Future work:}
-(1)~Larger EfficientNet variants (B3/B5)~\cite{b7} for increased capacity;
+(1)~Larger EfficientNet variants (B3/B5)~\cite{b7};
 (2)~multi-backbone comparison (DenseNet-121~\cite{b9}, ResNet-50~\cite{b10});
-(3)~equity assessment via Fitzpatrick phototype stratification~\cite{b13};
+(3)~equity assessment via Fitzpatrick stratification~\cite{b13};
 (4)~external validation on the ISIC private test set;
 (5)~ViT/Swin backbones~\cite{b17,b18} with larger pretraining budgets.
 
