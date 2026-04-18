@@ -173,22 +173,22 @@ specificity lost when Exp.~2 widened the decision boundary.
 The checkpoint with the highest validation F1 is retained.
 
 \begin{table}[t]
-\caption{Hyperparameter Configurations (EfficientNet-B0)}
+\caption{HP configurations and best-checkpoint results (EfficientNet-B0). All runs: LR${=}10^{-4}$, batch~32, 20~epochs; WD${=}10^{-5}$ for Exp.~2--3, else~0. $\Delta$FN: change in false negatives vs.\ prior row; \textsuperscript{$\ddagger$}vs.\ Baseline.}
 \label{tab:hp}
 \centering
-\scriptsize
-\begin{tabular}{@{}lccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lcccccccc@{}}
 \toprule
- & \textbf{Base} & \textbf{Exp.~1} & \textbf{Exp.~2} & \textbf{Exp.~3} & \textbf{Exp.~4} \\
+\textbf{Config} & \textbf{Optim} & \textbf{Sched} & $\boldsymbol{\gamma}$ & \textbf{Meta} & \textbf{F1} & \textbf{Recall} & \textbf{FN\;($\Delta$FN)} & \textbf{FP} \\
 \midrule
-Optimiser     & Adam & Adam  & AdamW & AdamW & Adam \\
-Scheduler     & None & Cosine & Cosine & Cosine & None \\
-Weight decay  & 0    & 0 & $10^{-5}$ & $10^{-5}$ & 0 \\
-Focal $\gamma$& 2.0  & 2.0 & 2.0 & 1.5 & 2.0 \\
-Metadata      & \checkmark & \checkmark & \checkmark & \checkmark & --- \\
-LR / Batch / Epochs & \multicolumn{5}{c}{$10^{-4}$ / 32 / 20} \\
+Baseline                  & Adam  & None   & 2.0 & \checkmark & 0.8932 & 92.16\% & 80\;(--)         & 145 \\
+Exp.~1 (cosine)           & Adam  & Cosine & 2.0 & \checkmark & \textbf{0.8984} & 93.14\% & 70\;($-$10) & 145 \\
+Exp.~2 (AdamW)            & AdamW & Cosine & 2.0 & \checkmark & 0.8855 & \textbf{93.54\%} & 66\;($-$4)  & 181 \\
+Exp.~3 ($\gamma$1.5)      & AdamW & Cosine & 1.5 & \checkmark & 0.8968 & 92.75\% & 74\;($+$8)  & 144 \\
+Exp.~4\textsuperscript{$\dagger$} (no meta) & Adam & None & 2.0 & --- & 0.9000 & 90.30\% & 99\;($+$19)\textsuperscript{$\ddagger$} & 106 \\
 \bottomrule
-\end{tabular}
+\multicolumn{9}{@{}l}{\textsuperscript{$\dagger$}Image-only ablation (no metadata MLP).}
+\end{tabular}}
 \end{table}
 
 \subsection{Test-Time Augmentation}
@@ -245,38 +245,15 @@ from the earliest epochs.
 % ------ IV-B: HP Search ------
 \subsection{Hyperparameter Search}\label{sec:hpsearch}
 
-\begin{table}[t]
-\caption{HP Search Results (EfficientNet-B0, best checkpoint)}
-\label{tab:hpsearch}
-\centering
-\footnotesize
-\begin{tabular}{@{}lccccccc@{}}
-\toprule
- & \textbf{F1} & \textbf{Recall} & \textbf{Acc} & \textbf{TP} & \textbf{FN} & \textbf{FP} & \textbf{TN} \\
-\midrule
-Baseline & 0.8932 & 92.16\% & 97.01\% & 941 & 80 & 145 & 6364 \\
-Exp.~1 & \textbf{0.8984} & 93.14\% & 97.14\% & 951 & 70 & 145 & 6364 \\
-Exp.~2 & 0.8855 & \textbf{93.54\%} & 96.72\% & 955 & 66 & 181 & 6328 \\
-Exp.~3 & 0.8968 & 92.75\% & 97.10\% & 947 & 74 & 144 & 6365 \\
-Exp.~4\textsuperscript{$\dagger$} & 0.9000 & 90.30\% & \textbf{97.28\%} & 922 & 99 & 106 & 6403 \\
-\bottomrule
-\multicolumn{8}{@{}l}{\textsuperscript{$\dagger$}Image-only (no metadata branch).}
-\end{tabular}
-\end{table}
-
-The five experiments form a deliberate chain (Table~\ref{tab:hpsearch}).
-\textbf{Exp.~1:} does a smarter LR schedule help? With a fixed LR the
-optimiser overshoots the best loss valley; cosine annealing decays it to
-near-zero by epoch~20, letting the model settle. Payoff: FN drops
-$80{\rightarrow}70$ with \emph{zero} extra FP---a ``free lunch.'' 
-\textbf{Exp.~2:} does weight decay push recall further? AdamW penalises
-large weights, broadening the decision boundary so borderline lesions get
-flagged. Recall peaks at 93.54\% (FN$\,{=}\,$66) but false alarms surge
-(FP: $145{\rightarrow}181$).
-\textbf{Exp.~3:} can the focal loss recover those FPs? Reducing $\gamma$
-from 2.0 to 1.5 gives easy benign examples more gradient influence,
-sharpening the boundary. FP falls to 144 (lowest of fusion models) while
-FN rises to 74.
+The five experiments form a deliberate chain (Table~\ref{tab:hp}).
+\textbf{Exp.~1} (cosine annealing): the LR decays to near-zero by epoch~20,
+letting the model settle into a sharper minimum---FN drops $80{\rightarrow}70$
+with \emph{zero} extra FP, a ``free lunch.''
+\textbf{Exp.~2} (AdamW): weight decay broadens the decision boundary, peaking
+recall at 93.54\% but surging FP from 145 to 181.
+\textbf{Exp.~3} ($\gamma{=}1.5$): less aggressive focal suppression restores
+specificity---FP falls to 144 (lowest of fusion models) while FN rises
+modestly to 74.
 
 Fig.~\ref{fig:cm} summarises all five experiments with the key design
 decision, plain-English rationale, and FN/FP outcome for each.
@@ -304,8 +281,11 @@ decision, plain-English rationale, and FN/FP outcome for each.
 
 Fig.~\ref{fig:training} overlays training dynamics. Baseline converges
 smoothly (loss $0.0152{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
-(Exp.~1--3) drives loss lower but widens the gap (0.36--0.59\%). Exp.~3
-($\gamma{=}1.5$) shows the largest gap. Exp.~1 achieves the best trade-off.
+(Exp.~1--3) drives loss lower but widens the gap (0.36--0.59\%), reflecting
+focal loss sensitivity to class boundaries on an imbalanced dataset;
+best-checkpoint selection by validation F1 ensures reported results are
+not sensitive to epoch-to-epoch variance. Exp.~3 ($\gamma{=}1.5$) shows
+the largest gap; Exp.~1 achieves the best trade-off.
 
 % ------ IV-D: ROC ------
 \subsection{Discriminative Performance}
@@ -313,7 +293,7 @@ smoothly (loss $0.0152{\rightarrow}0.0054$, gap $<$0.32\%). Cosine annealing
 All five experiments achieve AUC$\,{=}\,$0.99,
 confirming that HP variations affect the precision--recall operating point
 rather than underlying ranking ability. This motivates confusion-matrix-level
-analysis (Table~\ref{tab:hpsearch}) over AUC alone~\cite{b16}.
+analysis (Table~\ref{tab:hp}) over AUC alone~\cite{b16}.
 
 % ------ IV-E: SHAP ------
 \subsection{SHAP Feature Importance}
@@ -374,9 +354,16 @@ Exp.~3 -- $\gamma$1.5 & 1275.3 & 2637.2 \\
 A Mahalanobis distance-based OOD detector~\cite{b19} computes $\mu$ and
 $\Sigma^{-1}$ of the backbone's 1280-d validation features; inputs whose
 feature vectors lie beyond $\mu{+}3\sigma$ (Table~\ref{tab:ood}) are
-flagged---a non-dermoscopic image (e.g.~a car) sits far from the dermoscopy
-cluster and is correctly rejected. Exp.~1--3 produce tighter distributions,
-suggesting cosine annealing yields more compact feature representations.
+flagged. Without this gate, a non-dermoscopic image (e.g.\ a car) can
+yield high sigmoid confidence: sigmoid heads trained only on dermoscopic
+images have no explicit abstain mechanism, so out-of-distribution inputs
+that activate similar low-level CNN filters (edges, colour gradients) can
+align with malignant-class weights and produce misleadingly high logits.
+The Mahalanobis check operates on the 1280-d embedding rather than the
+output logit, intercepting these cases by detecting that the feature
+vector lies outside the dermoscopic distribution. Exp.~1--3 produce
+tighter distributions, suggesting cosine annealing yields more compact
+feature representations.
 
 % ------ IV-H: EigenCAM ------
 \subsection{EigenCAM Interpretability}
