@@ -107,12 +107,14 @@ prevalence. We examine the effect of varying~$\gamma$ in
 Section~\ref{sec:hpsearch}.
 
 \subsection{Metadata Fusion, TTA, and Limitations}
-Pacheco et~al.~\cite{b12} show metadata fusion improves AUC by 3.1~pp.
+Pacheco et~al.~\cite{b12} curate a multimodal skin lesion dataset pairing
+clinical images with patient metadata, motivating fusion approaches.
 Groh et~al.~\cite{b13} caution about skin-tone bias. TTA~\cite{b14}
 averages predictions over augmented views to reduce variance. Fujisawa
 et~al.~\cite{b15} identify amelanotic and small lesions as persistent DL
-failure modes. Brancaccio et~al.~\cite{b16} note AUC overstates clinical
-utility, motivating per-category error analysis (Section~\ref{sec:error}).
+failure modes. Davis and Goadrich~\cite{b16} show AUC can overstate
+clinical utility on imbalanced data, motivating per-category error analysis
+(Section~\ref{sec:error}).
 
 % ===================================================================
 \section{Methodology}
@@ -432,9 +434,9 @@ enabling browser-based inference with EigenCAM overlays and OOD detection.
 \bibitem{b11} T.-Y.~Lin et~al., ``Focal loss for dense object detection,'' in \textit{Proc. ICCV}, 2017, pp.~2980--2988.
 \bibitem{b12} B.~C.~L.~Pacheco et~al., ``PAD-UFES-20: A skin lesion dataset composed of patient data and clinical images,'' \textit{Data in Brief}, vol.~32, 2020.
 \bibitem{b13} M.~Groh et~al., ``Evaluating deep neural networks trained on clinical images in dermatology with the Fitzpatrick 17k dataset,'' in \textit{CVPR Workshop}, 2021.
-\bibitem{b14} G.~Wang et~al., ``Interactive medical image segmentation using deep learning with image-specific fine-tuning,'' \textit{IEEE Trans. Med. Imag.}, vol.~37, no.~7, pp.~1562--1573, 2018.
+\bibitem{b14} A.~Krizhevsky, I.~Sutskever, and G.~E.~Hinton, ``ImageNet classification with deep convolutional neural networks,'' in \textit{Proc. NeurIPS}, 2012, pp.~1097--1105.
 \bibitem{b15} Y.~Fujisawa et~al., ``Deep-learning-based, computer-aided classifier developed with a small dataset of clinical images surpasses board-certified dermatologists,'' \textit{Br. J. Dermatol.}, vol.~180, no.~2, 2019.
-\bibitem{b16} G.~Brancaccio et~al., ``Dermoscopy and reflectance confocal microscopy correlation of non-pigmented skin tumours,'' \textit{JEADV}, vol.~34, 2020.
+\bibitem{b16} J.~Davis and M.~Goadrich, ``The relationship between Precision-Recall and ROC curves,'' in \textit{Proc. ICML}, 2006, pp.~233--240.
 \bibitem{b17} A.~Dosovitskiy et~al., ``An image is worth 16x16 words: Transformers for image recognition at scale,'' in \textit{Proc. ICLR}, 2021.
 \bibitem{b18} Z.~Liu et~al., ``Swin Transformer: Hierarchical vision transformer using shifted windows,'' in \textit{Proc. ICCV}, 2021, pp.~10012--10022.
 \bibitem{b19} K.~Lee et~al., ``A simple unified framework for detecting out-of-distribution samples and adversarial attacks,'' in \textit{Proc. NeurIPS}, 2018.
