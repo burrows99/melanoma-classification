@@ -295,10 +295,10 @@ decision, plain-English rationale, and FN/FP outcome for each.
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{training_curves.png}
-\caption{Training curves for Baseline and Exp.~1--3. Top row: training and
-         validation loss. Bottom row: validation F1 and recall. Cosine
-         annealing (Exp.~1--3) produces lower training loss; Exp.~3
-         ($\gamma{=}1.5$) shows the largest train/val gap.}
+\caption{Training and validation loss (left) and validation F1/recall (right)
+         for all five experiments. Cosine annealing (Exp.~1--3) drives
+         training loss lower; Exp.~4 (image-only) tracks Baseline but with
+         lower F1, confirming the metadata contribution.}
 \label{fig:training}
 \end{figure}
 
