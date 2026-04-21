@@ -9,7 +9,6 @@
 
 | # | Topic | Key Exam Threat |
 |---|-------|-----------------|
-| [basic.md](basic.md) | **Detailed Chapters 1–4 (original notes)** | Deep narrative with layman analogies |
 | [01](01_dataset_preprocessing.md) | **Dataset & Preprocessing** | Why stratified split? What does CLAHE do? |
 | [02](02_architecture.md) | **Model Architecture** | Why late fusion? What is 1344-d? |
 | [03](03_focal_loss_imbalance.md) | **Focal Loss & Class Imbalance** | Derive α. What does γ suppress? |
@@ -47,87 +46,6 @@
 | Exp 4 (no meta) | Adam | None | 2.0 | ✗ | 0.9000 | 90.30% | 99 | 106 |
 
 **Key narrative:** Cosine annealing → best single change. AdamW → highest recall but FP catastrophe. γ=1.5 → specificity rescue. Metadata → +1.9pp recall, +39 FP.
-
----
-
-## Chapter Summaries (5-Minute Speed-Read)
-
-### Chapter 1 — Backbone & Loss
-
-- **Why EfficientNet-B0?** Compound scaling (depth × width × resolution jointly). 5.3M params, 77.1% ImageNet. ISIC 2020 winning solution used EfficientNet. Best accuracy-per-FLOP.
-- **Why not ResNet-50?** 25.6M params, 76.1% acc — more expensive, less accurate.
-- **Why focal loss?** Standard cross-entropy lets the model ignore 86% benign and still minimise loss. Focal loss: $FL(p_t) = -\alpha_t(1-p_t)^\gamma \log(p_t)$.
-- **α = 0.864** = inverse frequency weight. Forces 6.4× more gradient attention per malignant sample.
-- **γ = 2.0** suppresses easy benign examples. Too high → FP spike (model forgets benign). Too low → recall drops.
-- **Exp 3 proof:** γ 2.0→1.5 dropped FP 181→144 but raised FN 66→74. Exactly as theory predicts.
-
-### Chapter 2 — Architecture
-
-- **Dual-branch late fusion:** CNN (1280-d) + MLP (14→128→64-d) → concatenate (1344-d) → Linear → sigmoid.
-- **Why late?** Image and tabular data need separate "languages." Early fusion = meaningless (age ≠ pixel value). Late fusion mirrors clinical practice: scan first, patient chart at decision time.
-- **Metadata preprocessing:** age → median impute + z-score; sex + anatom_site → `'Unknown'` fill + one-hot → 14-d vector.
-- **MLP:** BatchNorm + ReLU + Dropout(0.3) after each layer. Dropout prevents memorisation of demographic patterns.
-- **Exp 4 (no meta):** accuracy=97.28% (looks great), but FN=99 vs Baseline's 80. **19 more dead patients.** Accuracy is a trap.
-- **Metadata adds:** +1.9pp recall (99→80 FN) at cost of +39 FP (106→145). Net gain is real.
-
-### Chapter 3 — Optimizers & Schedulers
-
-- **Adam:** adaptive learning rates per parameter. Good for sparse/noisy gradients from imbalanced data.
-- **Cosine annealing:** $\eta_t = \eta_{\min} + \frac{1}{2}(\eta_{\max}-\eta_{\min})(1+\cos\frac{t\pi}{T})$. Smooth LR decay → settles into sharp minima.
-- **Exp 1 (cosine):** FN 80→70. Zero extra FP. Best single change. ΔF1=+0.0052.
-- **AdamW:** decoupled weight decay applied directly to weights (not folded into gradient). Penalises large weights uniformly.
-- **Exp 2 (AdamW):** Best recall (93.54%, FN=66) BUT FP surged 145→181. Weight decay eroded sharp minority-class boundaries.
-- **Exp 3 (γ=1.5):** Partial recovery — FP back to 144, FN rises to 74. F1=0.8968.
-- **Checkpoint selection:** validation F1, not recall. Perfect recall = predict everything malignant = clinically useless.
-
-### Chapter 4 — Evaluation & TTA
-
-- **Primary metric: Recall.** Missed melanoma = metastasis = <25% 5yr survival. False alarm = biopsy = uncomfortable but safe.
-- **Accuracy trap:** 86.4% for all-benign. Always quote confusion matrix numbers.
-- **AUC=0.99 across all experiments:** HP changes don't affect *ranking* ability, only the operating *threshold*. AUC overstates utility on imbalanced data (Davis & Goadrich 2006).
-- **2-transform TTA (Baseline):** original + h-flip → average. Recall 92.16%→91.48%, but F1 0.8932→**0.9134**, specificity **98.62%**. Trades 7 FN for 55 fewer FP.
-- **Why averaging reduces variance:** $\text{Var}[\bar{p}] = \sigma^2/N$. Orientation noise averages out.
-- **6-transform TTA (Gradio demo):** + v-flip, 90°, 180°, 270°. Dermoscopy has no canonical orientation.
-
-### Chapter 5 — Metadata & SHAP
-
-- **SHAP (KernelExplainer):** model-agnostic, treats full model as black box. Computes Shapley values = marginal contribution of each feature averaged over all possible insertion orders.
-- **Top SHAP features (Exp 1):** `anatom_site_torso` > `age_approx` (monotonic: older→higher risk) > `anatom_site_anterior_torso` (rare but SHAP up to 0.18) > sex (modest).
-- **Why torso is dominant:** high UV exposure, large flat lesions often missed in self-exam, over-represented in confirmed melanoma in SIIM-ISIC.
-- **Exp 3 exception:** γ=1.5 compresses SHAP magnitudes and distributes importance more evenly across features.
-- **Three-pronged proof metadata isn't noise:** (1) Exp 4 ablation, (2) non-zero SHAP values, (3) clinical coherence with known epidemiology.
-
-### Chapter 6 — OOD Detection
-
-- **Problem:** Sigmoid always outputs a number. Koala → 85.8% malignant. No error thrown.
-- **Solution:** Mahalanobis distance on the 1280-d backbone embedding *before* the logit.
-
-$$D_M(\mathbf{z}) = (\mathbf{z}-\mu)^T \Sigma^{-1} (\mathbf{z}-\mu)$$
-
-> Code uses **squared** Mahalanobis (no sqrt) — threshold is also squared, so the OOD check is internally consistent.
-
-- **Reference distribution:** compute $\mu$ and $\Sigma^{-1}$ on all validation embeddings.
-- **Threshold:** $\mu_{D_M} + 3\sigma_{D_M}$ → captures 99.7% of valid distribution.
-- **Koala numbers:** distance=5124, threshold (Exp 1)=2652. Nearly 2× the threshold. Intercepted.
-- **Why not Euclidean?** Assumes all 1280 dims equally scaled and independent. CNN features are correlated. Mahalanobis uses $\Sigma^{-1}$ to decorrelate and normalise.
-- **Thresholds by experiment:** Exp 3=2637 (tightest), Baseline=3248 (loosest). Cosine-annealed models → tighter feature distributions.
-
-### Chapter 7 — EigenCAM
-
-- **What it shows:** heatmap of where EfficientNet-B0 is most activated in the final conv layer.
-- **Method:** SVD of final feature map tensor → first right singular vector → reshape to $H \times W$.
-- **Result (Exp 1):** attention on asymmetric borders, colour variegation, atypical pigment networks → matches ABCDE criteria.
-- **Why not Grad-CAM?** Needs gradients through fusion head. EigenCAM is gradient-free, stable, faster.
-- **Limitation:** not class-discriminative. Shows activation intensity, not specifically "what drove malignant vs benign."
-
-### Chapter 8 — Error Analysis
-
-- **FN types (6.8–8.5% of malignant):** amelanotic melanoma (no pigment → CNN can't grip), small lesions (<6mm at 256px resolution), early superficial spreading (subtle borders).
-- **FP types (1.4–2.8% of benign):** dysplastic naevi, atypical Spitz naevi, irregular seborrhoeic keratoses. These are the *same* hard cases a dermatologist would biopsy — FP is defensible.
-- **Best FN count:** Exp 2 (66) — but FP=181.
-- **Best FP count with metadata:** Exp 3 (144) — but FN=74.
-- **Best balanced:** Exp 1 (FN=70, FP=145, F1=0.8984).
-- **6.86% FN rate** is competitive — human dermoscopy without AI has 10–20% miss rate.
 
 ---
 

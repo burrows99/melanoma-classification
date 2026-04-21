@@ -93,24 +93,14 @@ Under a Gaussian assumption, µ ± 3σ captures **99.7%** of the training distri
 ## Grilling Question 4: "Where exactly does the detector intercept the pipeline?"
 
 ```
-Image Input
-     ↓
-EfficientNet-B0 backbone
-     ↓
-1280-d embedding  ←── Mahalanobis distance computed HERE
-     ↓                    ↓
-  D_M > threshold?   → YES → "OOD warning: not a dermoscopic image"
-     ↓ NO
-Concatenate with metadata embedding (64-d)
-     ↓
-Linear head (1344→1)
-     ↓
-Sigmoid → probability
-     ↓
-Displayed to user
+Image → EfficientNet-B0 → 1280-d embedding → [Mahalanobis check]
+                                            ↓ (if D_M > threshold: reject)
+                                   Concatenate with 64-d metadata
+                                            ↓
+                              Linear(1344→1) → Sigmoid → Output
 ```
 
-The check happens **before** the metadata branch and **before** the linear head. The OOD detector doesn't care about metadata — it only validates the visual embedding.
+The check happens **before** the metadata branch and linear head. OOD validates only the visual embedding.
 
 ---
 

@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melanoma Classification - Dual-Branch CNN with Metadata Fusion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        .slide-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .slide {
+            display: none;
+            height: 100vh;
+            padding: 40px 80px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-slide {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            text-align: center;
+            justify-content: center;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #00d9ff;
+        }
+
+        h2 {
+            font-size: 2.2em;
+            margin-bottom: 30px;
+            color: #00d9ff;
+            border-bottom: 3px solid #e94560;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            margin: 20px 0 15px 0;
+            color: #ffa500;
+        }
+
+        .subtitle {
+            font-size: 1.5em;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        .author {
+            font-size: 1.2em;
+            color: #888;
+            margin-top: 40px;
+        }
+
+        .content {
+            font-size: 1.2em;
+            line-height: 1.6;
+            flex: 1;
+        }
+
+        ul {
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .highlight {
+            color: #00d9ff;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #e94560;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.85em;
+        }
+
+        th {
+            background: #16213e;
+            color: #00d9ff;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        tr:nth-child(even) {
+            background: #1a1a2e;
+        }
+
+        tr:nth-child(odd) {
+            background: #0f0f23;
+        }
+
+        .best {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .figure-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .figure-container img {
+            max-width: 100%;
+            max-height: 380px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .single-figure img {
+            max-width: 75%;
+            max-height: 400px;
+        }
+
+        .two-figures img {
+            max-width: 45%;
+            max-height: 320px;
+        }
+
+        .three-figures img {
+            max-width: 30%;
+            max-height: 280px;
+        }
+
+        .caption {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+
+        .key-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        .box {
+            background: #16213e;
+            padding: 18px;
+            border-radius: 10px;
+            border-left: 4px solid #00d9ff;
+        }
+
+        .equation {
+            background: #0f0f23;
+            padding: 18px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .metric-explanation {
+            background: #0f0f23;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            border-left: 4px solid #ffa500;
+        }
+
+        .metric-explanation strong {
+            color: #ffa500;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .metric-box {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border-top: 3px solid #e94560;
+        }
+
+        .metric-value {
+            font-size: 1.8em;
+            color: #00d9ff;
+            font-weight: bold;
+        }
+
+        .metric-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Slide counter - minimal */
+        .slide-counter {
+            position: fixed;
+            bottom: 20px;
+            right: 30px;
+            color: #555;
+            font-size: 0.9em;
+            z-index: 100;
+        }
+
+        .slide-counter .current {
+            color: #00d9ff;
+            font-weight: bold;
+        }
+
+        /* Fullscreen button */
+        .fullscreen-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #16213e;
+            color: #00d9ff;
+            border: 2px solid #00d9ff;
+            padding: 10px 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            z-index: 1001;
+        }
+
+        .fullscreen-btn:hover {
+            background: #00d9ff;
+            color: #1a1a2e;
+        }
+
+        .fullscreen-btn::before {
+            content: "⛶ ";
+        }
+
+        /* Hide nav in fullscreen for cleaner view */
+        .slide-container.fullscreen-mode .nav-container {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .slide-container.fullscreen-mode:hover .nav-container {
+            opacity: 1;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: #00d9ff;
+            transition: width 0.3s ease;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+    <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()">Fullscreen</button>
+
+    <div class="slide-container" id="slideContainer">
+        <!-- SLIDE 1: Title -->
+        <div class="slide title-slide" data-slide="1">
+            <h1>Melanoma Classification</h1>
+            <p class="subtitle">Dual-Branch Deep Learning with Metadata Fusion,<br>Focal Loss, and Mahalanobis OOD Detection</p>
+            <div class="author">
+                <p>Raunak Burrows</p>
+                <p>University of Surrey</p>
+                <p>2025</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: Problem Statement -->
+        <div class="slide" data-slide="2">
+            <h2>The Clinical Challenge</h2>
+            <div class="content">
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Why Melanoma?</h3>
+                        <ul>
+                            <li>Causes <span class="highlight">75%+ of skin cancer deaths</span> despite being < 5% of cases</li>
+                            <li>5-year survival: <span class="success">98%+</span> at Stage I vs <span class="warning">25%</span> for metastatic</li>
+                            <li>Early detection is <span class="highlight">critical</span></li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>The Core Problem</h3>
+                        <ul>
+                            <li>Class imbalance: <span class="key-number">13.6%</span> malignant</li>
+                            <li>All-benign predictor = <span class="key-number">86.4%</span> accuracy</li>
+                            <li>But catches <span class="warning">zero cancers</span></li>
+                            <li>Accuracy is <span class="warning">misleading</span> on imbalanced data</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Our Approach</h3>
+                <ul>
+                    <li><span class="highlight">🔬 Dual-branch architecture:</span> EfficientNet-B0 (image) + MLP (patient metadata)</li>
+                    <li><span class="highlight">⚖️ Focal loss:</span> Down-weight easy negatives, focus on hard malignant cases</li>
+                    <li><span class="highlight">📊 Primary metric:</span> F1 score (balances catching cancers vs false alarms)</li>
+                    <li><span class="highlight">🛡️ OOD detection:</span> Mahalanobis distance for out-of-distribution inputs</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: Dataset & Preprocessing -->
+        <div class="slide" data-slide="3">
+            <h2>Dataset & Preprocessing</h2>
+            <div class="content">
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>SIIM-ISIC 2020 Dataset</h3>
+                        <ul>
+                            <li><span class="highlight">37,648</span> dermoscopic images (256×256)</li>
+                            <li><span class="highlight">13.6%</span> malignant prevalence</li>
+                            <li>80/20 stratified split (seed=42)</li>
+                            <li>Identical split across all experiments</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Metadata Features (14-d)</h3>
+                        <ul>
+                            <li><span class="highlight">age_approx:</span> continuous (z-score normalized)</li>
+                            <li><span class="highlight">sex:</span> binary (one-hot)</li>
+                            <li><span class="highlight">anatom_site:</span> 6 categories (one-hot)</li>
+                            <li>Median/mode imputation for missing values</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Image Augmentation Pipeline</h3>
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>Training:</strong>
+                        <ul>
+                            <li>CLAHE (contrast enhancement)</li>
+                            <li>Random blur</li>
+                            <li>Horizontal/vertical flip (p=0.5)</li>
+                            <li>Rotation ±15°</li>
+                            <li>Color jitter</li>
+                            <li>Random erasing</li>
+                            <li>ImageNet normalization</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <strong>Validation:</strong>
+                        <ul>
+                            <li>Resize to 256×256</li>
+                            <li>ImageNet normalization</li>
+                            <li><span class="highlight">No augmentations</span> (clean evaluation)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: Model Architecture -->
+        <div class="slide" data-slide="4">
+            <h2>Model Architecture: Dual-Branch Late Fusion</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/architecture.png" alt="Architecture Diagram">
+                </div>
+                <p class="caption">EfficientNet-B0 (1280-d) + Metadata MLP (64-d) → Concatenation → Linear Head (1-d logit)</p>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Why EfficientNet-B0?</h3>
+                        <ul>
+                            <li><span class="key-number">5.3M</span> parameters (lightweight)</li>
+                            <li><span class="key-number">77.1%</span> ImageNet accuracy</li>
+                            <li>Depthwise separable convs (8× cheaper)</li>
+                            <li>SE attention + compound scaling</li>
+                            <li>ISIC 2020 winner used EfficientNet ensemble</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Why Late Fusion?</h3>
+                        <ul>
+                            <li>Image & metadata have different "languages"</li>
+                            <li>Process separately → combine at decision</li>
+                            <li><span class="highlight">Not</span> concatenate to pixels (age has no spatial meaning)</li>
+                            <li>Metadata MLP: 14 → 128 → 64 (only 10k params!)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="equation">
+                    Fusion: [Image Features 1280-d] ⊕ [Metadata Features 64-d] = 1344-d → Linear → Sigmoid
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Focal Loss -->
+        <div class="slide" data-slide="5">
+            <h2>Handling Class Imbalance: Focal Loss</h2>
+            <div class="content">
+                <h3>The Problem</h3>
+                <ul>
+                    <li><span class="highlight">6.4:1</span> ratio of benign to malignant samples</li>
+                    <li>Standard cross-entropy: model can ignore minority class and still minimize loss</li>
+                    <li>Easy negatives dominate gradients</li>
+                </ul>
+
+                <h3>Focal Loss Solution</h3>
+                <div class="equation">
+                    FL(p<sub>t</sub>) = -α<sub>t</sub> · (1 - p<sub>t</sub>)<sup>γ</sup> · log(p<sub>t</sub>)
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>α (alpha) = 0.864</h3>
+                        <p>Derived from class proportion:</p>
+                        <p>α = 1 - 0.136 = <span class="highlight">0.864</span></p>
+                        <p>Upweights malignant examples</p>
+                    </div>
+                    <div class="box">
+                        <h3>γ (gamma) = 2.0 (default)</h3>
+                        <p>Modulates loss for easy vs hard examples:</p>
+                        <ul>
+                            <li>High γ → Strong suppression of easy negatives</li>
+                            <li>Low γ → Less suppression, more balanced</li>
+                            <li>Experiment 3 tests γ=1.5</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Key Insight</h3>
+                <p><span class="highlight">(1 - p<sub>t</sub>)<sup>γ</sup></span> — When model is confident and correct (p→1), loss → 0.<br>
+                When model is wrong (p→0), loss is amplified. Forces focus on hard cases.</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: Training Pipeline -->
+        <div class="slide" data-slide="6">
+            <h2>Training Pipeline</h2>
+            <div class="content">
+                <h3>Hyperparameters (Fixed Across All Experiments)</h3>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">1e-4</div>
+                        <div class="metric-label">Learning Rate</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">32</div>
+                        <div class="metric-label">Batch Size</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">20</div>
+                        <div class="metric-label">Epochs</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">0.864</div>
+                        <div class="metric-label">Focal α</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">F1</div>
+                        <div class="metric-label">Checkpoint Metric</div>
+                    </div>
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>F1 = Harmonic Mean of Precision & Recall</strong><br>
+                    F1 = 2 × (Precision × Recall) / (Precision + Recall)<br>
+                    <em>In this project:</em> F1 balances <strong>catching melanomas (recall)</strong> against <strong>avoiding false alarms (precision)</strong>. A model that predicts everything as malignant has 100% recall but terrible precision—F1 penalizes this imbalance.
+                </div>
+
+                <h3>Training Loop</h3>
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>Per Epoch:</strong>
+                        <ol>
+                            <li>Forward pass through dual-branch model</li>
+                            <li>Compute focal loss</li>
+                            <li>Backpropagate gradients</li>
+                            <li>Optimizer step (Adam or AdamW)</li>
+                            <li>Scheduler step (if enabled)</li>
+                            <li>Validate on held-out set</li>
+                            <li>Save checkpoint if val F1 improves</li>
+                        </ol>
+                    </div>
+                    <div class="box">
+                        <strong>Best Checkpoint Selection:</strong>
+                        <ul>
+                            <li>Optimize for <span class="highlight">validation F1</span></li>
+                            <li>Not accuracy (86.4% baseline is misleading)</li>
+                            <li>Not recall alone (100% recall = predict all malignant)</li>
+                            <li>F1 balances precision and recall</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Experiment Design -->
+        <div class="slide" data-slide="7">
+            <h2>Experiment Design: Isolating Factors</h2>
+            <div class="content">
+                <h3>Design Principle</h3>
+                <p>Each experiment introduces <span class="highlight">exactly one primary change</span> — a proper ablation study.</p>
+
+                <table>
+                    <tr>
+                        <th>Config</th>
+                        <th>Optimizer</th>
+                        <th>Scheduler</th>
+                        <th>γ</th>
+                        <th>Metadata</th>
+                        <th>Key Question</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Baseline</strong></td>
+                        <td>Adam</td>
+                        <td>None</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td>Minimal reference</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exp 1</strong></td>
+                        <td>Adam</td>
+                        <td>Cosine</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td>Does scheduling help?</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exp 2</strong></td>
+                        <td>AdamW</td>
+                        <td>Cosine</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td>Does weight decay help?</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exp 3</strong></td>
+                        <td>AdamW</td>
+                        <td>Cosine</td>
+                        <td>1.5</td>
+                        <td>✓</td>
+                        <td>Can we recover specificity?</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exp 4</strong></td>
+                        <td>Adam</td>
+                        <td>None</td>
+                        <td>2.0</td>
+                        <td>✗</td>
+                        <td>Is metadata necessary?</td>
+                    </tr>
+                </table>
+
+                <h3>Cosine Annealing</h3>
+                <div class="equation">
+                    LR(t) = LR<sub>min</sub> + ½(LR<sub>max</sub> - LR<sub>min</sub>)(1 + cos(πt/T))
+                </div>
+                <p>Smoothly decays learning rate — lets model settle into sharper minima.</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: Key Metrics Explained -->
+        <div class="slide" data-slide="8">
+            <h2>Key Metrics Explained</h2>
+            <div class="content">
+                <div class="metric-explanation">
+                    <strong>F1 Score — Primary Optimization Metric</strong><br>
+                    F1 = 2 × (Precision × Recall) / (Precision + Recall)<br><br>
+                    <em>In this project:</em> F1 measures the balance between <strong>catching melanomas</strong> and <strong>avoiding false alarms</strong>.<br>
+                    Higher F1 = better trade-off between not missing cancers and not overwhelming dermatologists with benign referrals.
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>Recall (Sensitivity) — Clinical Priority</strong><br>
+                    Recall = TP / (TP + FN) = % of true melanomas correctly identified<br><br>
+                    <em>In this project:</em> Recall = <strong>% of melanomas we catch</strong>.<br>
+                    A recall of 93.14% means we identify 93.14% of actual melanomas.<br>
+                    <span class="warning">High recall is critical:</span> Missing a melanoma (FN) sends a patient home with undetected cancer.
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>FN (False Negatives) — Missed Melanomas</strong><br>
+                    FN = Patients with melanoma incorrectly predicted as benign<br><br>
+                    <em>In this project:</em> FN = <strong>number of missed cancers</strong> in validation set (~1,024 malignant samples).<br>
+                    Baseline FN=80 means <span class="warning">80 patients sent home with undetected melanoma</span>.<br>
+                    <span class="success">Lower FN = fewer missed cancers = better clinical outcome.</span>
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>FP (False Positives) — Unnecessary Biopsies</strong><br>
+                    FP = Patients with benign lesions incorrectly predicted as malignant<br><br>
+                    <em>In this project:</em> FP = <strong>number of unnecessary referrals/biopsies</strong> in validation set (~6,506 benign samples).<br>
+                    Baseline FP=145 means 145 benign patients flagged for further investigation.<br>
+                    <span class="highlight">Lower FP = fewer unnecessary procedures, but not at the cost of missing cancers.</span>
+                </div>
+
+                <div class="box">
+                    <strong>The Trade-off:</strong> FN reduction (catching more cancers) often increases FP (more false alarms).<br>
+                    F1 optimizes the balance. A model with 100% recall but 10,000 FP is useless clinically.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: Results Table -->
+        <div class="slide" data-slide="9">
+            <h2>Results: The Full Chain</h2>
+            <div class="content">
+                <table>
+                    <tr>
+                        <th>Config</th>
+                        <th>Optimizer</th>
+                        <th>Scheduler</th>
+                        <th>γ</th>
+                        <th>Meta</th>
+                        <th>F1<br><small>balance</small></th>
+                        <th>Recall<br><small>% cancers caught</small></th>
+                        <th>FN<br><small>missed cancers</small></th>
+                        <th>FP<br><small>false alarms</small></th>
+                    </tr>
+                    <tr>
+                        <td>Baseline</td>
+                        <td>Adam</td>
+                        <td>None</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td>0.8932</td>
+                        <td>92.16%</td>
+                        <td>80</td>
+                        <td>145</td>
+                    </tr>
+                    <tr style="background: #1a3320;">
+                        <td><span class="best">Exp 1 (Best)</span></td>
+                        <td>Adam</td>
+                        <td>Cosine</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td><span class="best">0.8984</span></td>
+                        <td>93.14%</td>
+                        <td><span class="best">70</span></td>
+                        <td>145</td>
+                    </tr>
+                    <tr>
+                        <td>Exp 2</td>
+                        <td>AdamW</td>
+                        <td>Cosine</td>
+                        <td>2.0</td>
+                        <td>✓</td>
+                        <td>0.8855 ↓</td>
+                        <td><span class="highlight">93.54%</span></td>
+                        <td>66</td>
+                        <td>181 ↑</td>
+                    </tr>
+                    <tr>
+                        <td>Exp 3</td>
+                        <td>AdamW</td>
+                        <td>Cosine</td>
+                        <td>1.5</td>
+                        <td>✓</td>
+                        <td>0.8968</td>
+                        <td>92.75%</td>
+                        <td>74</td>
+                        <td>144</td>
+                    </tr>
+                    <tr>
+                        <td>Exp 4 (Ablation)</td>
+                        <td>Adam</td>
+                        <td>None</td>
+                        <td>2.0</td>
+                        <td>✗</td>
+                        <td>0.9000</td>
+                        <td>90.30% ↓</td>
+                        <td>99 ↑</td>
+                        <td>106</td>
+                    </tr>
+                </table>
+
+                <div class="metric-explanation">
+                    <strong>Reading the table:</strong><br>
+                    • <strong>F1</strong> = balance between catching cancers and avoiding false alarms (higher is better)<br>
+                    • <strong>Recall</strong> = % of melanomas correctly identified (higher = fewer missed cancers)<br>
+                    • <strong>FN</strong> = missed melanomas — patients sent home with undetected cancer (lower is better)<br>
+                    • <strong>FP</strong> = benign lesions wrongly flagged — unnecessary biopsies (lower is better)
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Key Findings</h3>
+                        <ul>
+                            <li><span class="success">Exp 1:</span> Cosine annealing → <span class="highlight">best single change</span></li>
+                            <li>FN: 80→70 (<span class="success">10 fewer missed cancers</span>)</li>
+                            <li>FP unchanged at 145</li>
+                            <li>F1: 0.8932→0.8984</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Lessons Learned</h3>
+                        <ul>
+                            <li><span class="warning">AdamW:</span> Highest recall but FP catastrophe (181 false alarms)</li>
+                            <li><span class="warning">γ=1.5:</span> Recovers specificity partially</li>
+                            <li><span class="warning">No metadata:</span> 19 more missed cancers (99 vs 80)</li>
+                            <li>All 5 experiments: <span class="highlight">AUC=0.99</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: Confusion Matrices & ROC -->
+        <div class="slide" data-slide="10">
+            <h2>Confusion Matrices & ROC Curves</h2>
+            <div class="content">
+                <div class="metric-explanation">
+                    <strong>Confusion Matrix Interpretation:</strong><br>
+                    • <strong>True Negatives (TN)</strong> = Benign correctly classified → No unnecessary biopsy<br>
+                    • <strong>False Positives (FP)</strong> = Benign wrongly flagged → Unnecessary biopsy<br>
+                    • <strong>False Negatives (FN)</strong> = Melanoma missed → Patient sent home with cancer<br>
+                    • <strong>True Positives (TP)</strong> = Melanoma correctly identified → Patient referred for treatment
+                </div>
+
+                <h3>Baseline</h3>
+                <div class="figure-container two-figures">
+                    <img src="../output/efficientnet_b0/plots/confusion_matrix.png" alt="Baseline Confusion Matrix">
+                    <img src="../output/efficientnet_b0/plots/roc_curve.png" alt="Baseline ROC Curve">
+                </div>
+                <p class="caption">Baseline: FN=80 (<span class="warning">80 missed melanomas</span>), FP=145 (145 unnecessary biopsies) | AUC = 0.99</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 11: Exp 1 Results -->
+        <div class="slide" data-slide="11">
+            <h2>Experiment 1: Cosine Annealing (Best Model)</h2>
+            <div class="content">
+                <div class="figure-container two-figures">
+                    <img src="../output/experiment1/plots/confusion_matrix.png" alt="Exp 1 Confusion Matrix">
+                    <img src="../output/experiment1/plots/roc_curve.png" alt="Exp 1 ROC Curve">
+                </div>
+                <p class="caption">Exp 1: FN=70 (<span class="success">10 fewer missed melanomas</span>), FP=145 (unchanged) | F1=0.8984 | Recall=93.14%</p>
+
+                <div class="metric-explanation">
+                    <strong>Improvement Over Baseline:</strong><br>
+                    • <strong>FN: 80 → 70</strong> = 10 fewer patients sent home with undetected melanoma<br>
+                    • <strong>FP: unchanged at 145</strong> = no increase in unnecessary biopsies<br>
+                    • <strong>Recall: 92.16% → 93.14%</strong> = 1% more melanomas caught<br>
+                    • <strong>F1: 0.8932 → 0.8984</strong> = better balance of precision and recall
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Numerical Improvement</h3>
+                        <ul>
+                            <li>FN: 80 → 70 (<span class="success">-10 missed cancers</span>)</li>
+                            <li>FP: unchanged at 145</li>
+                            <li>Recall: 92.16% → 93.14%</li>
+                            <li>F1: 0.8932 → 0.8984</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Why It Works</h3>
+                        <p>Cosine annealing lets the model settle into <span class="highlight">sharper minima</span> — it can distinguish hard malignant features without widening the decision boundary for benign.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: All Experiments Confusion Matrices -->
+        <div class="slide" data-slide="12">
+            <h2>All Experiments: Confusion Matrices Comparison</h2>
+            <div class="content">
+                <div class="figure-container three-figures">
+                    <img src="../output/experiment2/plots/confusion_matrix.png" alt="Exp 2 Confusion Matrix">
+                    <img src="../output/experiment3/plots/confusion_matrix.png" alt="Exp 3 Confusion Matrix">
+                    <img src="../output/experiment4/plots/confusion_matrix.png" alt="Exp 4 Confusion Matrix">
+                </div>
+                <p class="caption">Exp 2: FN=66, FP=181 | Exp 3: FN=74, FP=144 | Exp 4 (no metadata): FN=<span class="warning">99</span>, FP=106</p>
+
+                <table>
+                    <tr>
+                        <th>Experiment</th>
+                        <th>Change</th>
+                        <th>FN Δ<br><small>missed cancers</small></th>
+                        <th>FP Δ<br><small>false alarms</small></th>
+                        <th>F1 Δ<br><small>balance</small></th>
+                    </tr>
+                    <tr>
+                        <td>Exp 2 (AdamW)</td>
+                        <td>Weight decay 1e-5</td>
+                        <td>-4 <span class="success">↑catches more</span></td>
+                        <td>+36 <span class="warning">↑false alarms</span></td>
+                        <td>-0.0129 <span class="warning">↓worse balance</span></td>
+                    </tr>
+                    <tr>
+                        <td>Exp 3 (γ=1.5)</td>
+                        <td>Less focal suppression</td>
+                        <td>+8 <span class="warning">↑missed</span></td>
+                        <td>-37 <span class="success">↓false alarms</span></td>
+                        <td>+0.0113</td>
+                    </tr>
+                    <tr>
+                        <td>Exp 4 (No Meta)</td>
+                        <td>Disable metadata</td>
+                        <td>+19 <span class="warning">↑missed cancers</span></td>
+                        <td>-39 <span class="success">↓false alarms</span></td>
+                        <td>+0.0068</td>
+                    </tr>
+                </table>
+
+                <div class="metric-explanation">
+                    <strong>Interpretation:</strong><br>
+                    • Exp 2 catches more cancers (FN↓) but creates too many false alarms (FP↑) → F1 drops<br>
+                    • Exp 3 recovers specificity (FP↓) but loses some recall (FN↑)<br>
+                    • Exp 4 without metadata misses 19 more cancers — <span class="warning">metadata is clinically valuable</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 13: Training Curves -->
+        <div class="slide" data-slide="13">
+            <h2>Training Dynamics</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/training_curves.png" alt="Training Curves">
+                </div>
+                <p class="caption">Loss and F1/Recall over 20 epochs for all experiments</p>
+
+                <div class="metric-explanation">
+                    <strong>Reading the Curves:</strong><br>
+                    • <strong>F1</strong> = balance between catching melanomas and avoiding false alarms — watch this converge<br>
+                    • <strong>Recall</strong> = % of melanomas caught — should increase over training<br>
+                    • Gap between train/val indicates generalization — smaller gap = better generalization
+                </div>
+
+                <h3>Observations</h3>
+                <ul>
+                    <li><span class="highlight">Baseline:</span> Smooth convergence, train/val gap < 0.32%</li>
+                    <li><span class="highlight">Cosine (Exp 1-3):</span> Drives loss lower, wider train/val gap (0.36-0.59%).</li>
+                    <li><span class="highlight">Exp 4 (No Meta):</span> Tracks Baseline but with lower F1 throughout — <span class="warning">metadata contributes to recall</span></li>
+                    <li><span class="highlight">All experiments:</span> AUC=0.99 — HP changes affect operating point, not ranking ability</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 14: Ablation Curves -->
+        <div class="slide" data-slide="14">
+            <h2>Metadata Ablation: Exp 4 vs Exp 1</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/ablation_curves.png" alt="Ablation Curves">
+                </div>
+                <p class="caption">Validation F1 and Recall: Image-only (Exp 4) vs Best model with metadata (Exp 1)</p>
+
+                <div class="metric-explanation">
+                    <strong>Ablation Interpretation:</strong><br>
+                    • <strong>F1</strong> gap shows metadata helps balance precision and recall<br>
+                    • <strong>Recall</strong> gap shows metadata catches more melanomas throughout training<br>
+                    • Exp 4 (no metadata) looks good on F1 but <span class="warning">misses 19 more cancers (FN: 99 vs 80)</span>
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Without Metadata (Exp 4)</h3>
+                        <ul>
+                            <li>Accuracy looks good: 97.28%</li>
+                            <li>F1: 0.9000</li>
+                            <li><span class="warning">BUT: FN=99 missed melanomas</span></li>
+                            <li>19 more missed cancers than Baseline (FN=80)</li>
+                            <li><span class="warning">Clinical cost hidden by accuracy</span></li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>With Metadata (Exp 1)</h3>
+                        <ul>
+                            <li><span class="success">Recall advantage throughout training</span></li>
+                            <li><span class="success">+1.9 percentage points recall</span></li>
+                            <li>FN: 70 vs 99 (29 fewer missed cancers)</li>
+                            <li>Metadata learns anatomical site + age cues</li>
+                            <li>Cost: 39 extra FP (more biopsies)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 15: SHAP Analysis -->
+        <div class="slide" data-slide="15">
+            <h2>Metadata Contribution: SHAP Analysis</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/shap_exp1.png" alt="SHAP Feature Importance">
+                </div>
+                <p class="caption">SHAP beeswarm plot for Experiment 1. Features ranked by impact on melanoma prediction.</p>
+
+                <div class="metric-explanation">
+                    <strong>SHAP Values Interpretation:</strong><br>
+                    • Each dot = one patient's metadata feature value<br>
+                    • <strong>Red</strong> = high feature value (e.g., older age)<br>
+                    • <strong>Blue</strong> = low feature value (e.g., younger age)<br>
+                    • X-axis = impact on prediction — <span class="highlight">positive = pushes toward malignant prediction</span>
+                </div>
+
+                <h3>Key Insights</h3>
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>Dominant Features:</strong>
+                        <ul>
+                            <li><span class="highlight">anatom_site_torso:</span> Highest importance — torso lesions have higher melanoma risk</li>
+                            <li><span class="highlight">age_approx:</span> Monotonic — older patients → higher risk</li>
+                            <li><span class="highlight">anterior_torso:</span> Rare but high-impact (SHAP up to 0.18)</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <strong>Why Metadata Matters:</strong>
+                        <ul>
+                            <li>Clinical context unavailable in image alone</li>
+                            <li>Age and anatomical site correlate with melanoma risk</li>
+                            <li>MLP learns to flag high-risk combinations</li>
+                            <li><span class="success">+1.9 pp recall = 19 fewer missed cancers</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 16: EigenCAM Interpretability -->
+        <div class="slide" data-slide="16">
+            <h2>EigenCAM: Visual Interpretability</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/eigencam_example.png" alt="EigenCAM Example">
+                </div>
+                <p class="caption">EigenCAM overlay for a malignant lesion. Attention focuses on ABCDE criteria.</p>
+
+                <h3>ABCDE Criteria Alignment</h3>
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>ABCDE Clinical Criteria:</strong>
+                        <ul>
+                            <li><span class="highlight">A</span>symmetry — irregular shape</li>
+                            <li><span class="highlight">B</span>order — uneven edges</li>
+                            <li><span class="highlight">C</span>olor — multiple shades</li>
+                            <li><span class="highlight">D</span>iameter — >6mm</li>
+                            <li><span class="highlight">E</span>volving — changing over time</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <strong>EigenCAM Observations:</strong>
+                        <ul>
+                            <li>Attention localizes on <span class="highlight">asymmetric borders</span></li>
+                            <li>Highlights <span class="highlight">color variegation</span></li>
+                            <li>Focuses on <span class="highlight">atypical pigment networks</span></li>
+                            <li>Validates clinically relevant features</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>Clinical Relevance:</strong><br>
+                    EigenCAM shows the model focuses on the same features dermatologists look for — asymmetric borders, irregular color, and atypical patterns. This builds trust that the model isn't learning spurious correlations.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 17: OOD Detection -->
+        <div class="slide" data-slide="17">
+            <h2>Out-of-Distribution Detection</h2>
+            <div class="content">
+                <div class="figure-container single-figure">
+                    <img src="../report/figs/ood_example.png" alt="OOD Detection Example">
+                </div>
+                <p class="caption">OOD detection intercepts non-dermoscopic inputs before trusting predictions.</p>
+
+                <h3>Mahalanobis Distance</h3>
+                <div class="equation">
+                    d²(x) = (x - μ)<sup>T</sup> Σ<sup>-1</sup> (x - μ)
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>How It Works:</strong>
+                        <ul>
+                            <li>Compute μ and Σ from validation embeddings</li>
+                            <li>Threshold: μ + 3σ (empirical)</li>
+                            <li>Ranges: 2637 (Exp 3) to 3248 (Baseline)</li>
+                            <li>Flag inputs far from training distribution</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <strong>Why It Matters:</strong>
+                        <ul>
+                            <li>Non-dermoscopic images can trigger false positives</li>
+                            <li>Example: Koala photo → <span class="warning">85.8% malignant</span></li>
+                            <li>Distance: 5124 >> threshold 2652</li>
+                            <li>OOD warning prevents <span class="success">misleading confidence</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="metric-explanation">
+                    <strong>Clinical Safety:</strong><br>
+                    Without OOD detection, the model would confidently predict "malignant" on any image. The Mahalanobis distance acts as a safety gate — if the input is too different from training data, the system warns the user instead of giving a potentially wrong prediction.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 18: Error Analysis -->
+        <div class="slide" data-slide="18">
+            <h2>Error Analysis: False Negatives & False Positives</h2>
+            <div class="content">
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>False Negatives (~7-8.5% of malignant)</h3>
+                        <strong>What the model misses:</strong>
+                        <ul>
+                            <li><span class="warning">Amelanotic melanomas</span> — lack pigment</li>
+                            <li><span class="warning">Small lesions</span> — <6mm diameter</li>
+                            <li><span class="warning">Early superficial spreading</span> — subtle features</li>
+                            <li>Lack typical ABCDE signs</li>
+                            <li>CNN relies on pigmented features</li>
+                        </ul>
+                        <div class="metric-explanation">
+                            <strong>FN = Missed Melanomas</strong><br>
+                            Each FN is a patient sent home with undetected cancer. Exp 1 reduces FN from 80 to 70 — <span class="success">10 fewer missed cancers</span>.
+                        </div>
+                    </div>
+                    <div class="box">
+                        <h3>False Positives (~1.4-2.8% of benign)</h3>
+                        <strong>What triggers false alarms:</strong>
+                        <ul>
+                            <li><span class="warning">Dysplastic naevi</span> — atypical but benign</li>
+                            <li><span class="warning">Atypical Spitz naevi</span> — irregular features</li>
+                            <li><span class="warning">Seborrhoeic keratoses</span> — irregular borders</li>
+                            <li>Visually similar to melanoma</li>
+                            <li>Lower cost than missed melanoma</li>
+                        </ul>
+                        <div class="metric-explanation">
+                            <strong>FP = Unnecessary Biopsies</strong><br>
+                            Each FP is an unnecessary referral. Higher FP is acceptable if it means catching more cancers. The F1 score balances this trade-off.
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Exp 1 Error Rates</h3>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">6.86%</div>
+                        <div class="metric-label">FN Rate<br><small>% melanomas missed</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">93.14%</div>
+                        <div class="metric-label">Recall<br><small>% cancers caught</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">2.2%</div>
+                        <div class="metric-label">FP Rate<br><small>% benign flagged</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">0.8984</div>
+                        <div class="metric-label">F1<br><small>balance</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">0.99</div>
+                        <div class="metric-label">AUC<br><small>ranking</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 19: TTA Results -->
+        <div class="slide" data-slide="19">
+            <h2>Test-Time Augmentation Impact</h2>
+            <div class="content">
+                <h3>Two-Transform TTA (Baseline + h-flip)</h3>
+                <table>
+                    <tr>
+                        <th>Configuration</th>
+                        <th>Recall<br><small>% cancers caught</small></th>
+                        <th>Specificity<br><small>% benign correct</small></th>
+                        <th>F1<br><small>balance</small></th>
+                        <th>FN<br><small>missed cancers</small></th>
+                        <th>FP<br><small>false alarms</small></th>
+                    </tr>
+                    <tr>
+                        <td>Baseline (no TTA)</td>
+                        <td>92.16%</td>
+                        <td>97.77%</td>
+                        <td>0.8932</td>
+                        <td>80</td>
+                        <td>145</td>
+                    </tr>
+                    <tr style="background: #1a3320;">
+                        <td><span class="best">Baseline + 2-transform TTA</span></td>
+                        <td>91.48%</td>
+                        <td><span class="best">98.62%</span></td>
+                        <td><span class="best">0.9134</span></td>
+                        <td>87</td>
+                        <td><span class="best">90</span></td>
+                    </tr>
+                </table>
+
+                <div class="metric-explanation">
+                    <strong>TTA Trade-off:</strong><br>
+                    • <strong>Recall ↓ 0.68 pp</strong> = catches 0.68% fewer melanomas (7 more FN = 7 more missed cancers)<br>
+                    • <strong>Specificity ↑ 0.85 pp</strong> = 0.85% fewer false alarms (55 fewer FP = 55 fewer unnecessary biopsies)<br>
+                    • <strong>F1 ↑ 0.0202</strong> = better balance overall<br>
+                    TTA averages predictions over augmented views, reducing orientation-specific variance.
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>When to Use TTA</h3>
+                        <ul>
+                            <li><span class="success">Use when:</span> Reducing false alarms is priority</li>
+                            <li><span class="warning">Don't use when:</span> Catching every cancer is critical (screening)</li>
+                            <li>Trade-off: 7 missed cancers for 55 fewer biopsies</li>
+                            <li>Decision depends on clinical context</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Gradio Demo</h3>
+                        <p>Extends to <span class="highlight">6 transforms</span>:</p>
+                        <ul>
+                            <li>Original, Horizontal flip, Vertical flip</li>
+                            <li>90° / 180° / 270° rotation</li>
+                        </ul>
+                        <p>Exploits rotational symmetry of dermoscopic lesions.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 20: Literature Context -->
+        <div class="slide" data-slide="20">
+            <h2>Literature Context</h2>
+            <div class="content">
+                <table>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Key Finding</th>
+                    </tr>
+                    <tr>
+                        <td>Esteva et al., Nature 2017</td>
+                        <td>CNN matched 21 dermatologists on skin cancer classification</td>
+                    </tr>
+                    <tr>
+                        <td>Rotemberg et al., Sci. Data 2021</td>
+                        <td>ISIC 2020 dataset with structured metadata</td>
+                    </tr>
+                    <tr>
+                        <td>Ha et al., arXiv 2020</td>
+                        <td>EfficientNet ensemble won ISIC 2020 (AUC=0.949)</td>
+                    </tr>
+                    <tr>
+                        <td>Tan & Le, ICML 2019</td>
+                        <td>EfficientNet compound scaling — accuracy per FLOP</td>
+                    </tr>
+                    <tr>
+                        <td>Lin et al., ICCV 2017</td>
+                        <td>Focal loss — designed for object detection class imbalance</td>
+                    </tr>
+                    <tr>
+                        <td>Davis & Goadrich, ICML 2006</td>
+                        <td>AUC overstates utility on imbalanced data — use F1 instead</td>
+                    </tr>
+                    <tr>
+                        <td>Lee et al., NeurIPS 2018</td>
+                        <td>Mahalanobis OOD detection framework</td>
+                    </tr>
+                </table>
+
+                <h3>Why Not ViT / ResNet-50?</h3>
+                <div class="grid-2">
+                    <div class="box">
+                        <strong>Vision Transformer (ViT):</strong>
+                        <ul>
+                            <li>No translation equivariance</li>
+                            <li>Needs 10-100× more data</li>
+                            <li>Not suited for ~37k images</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <strong>ResNet-50:</strong>
+                        <ul>
+                            <li>25.6M params (4.8× more)</li>
+                            <li>76.1% ImageNet (worse than B0)</li>
+                            <li>No compound scaling benefit</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 21: Deployment -->
+        <div class="slide" data-slide="21">
+            <h2>Deployment & Availability</h2>
+            <div class="content">
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">GitHub</div>
+                        <div class="metric-label">Full Codebase</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">HuggingFace</div>
+                        <div class="metric-label">Model Weights</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">Gradio</div>
+                        <div class="metric-label">Live Demo</div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Repository</h3>
+                        <p><span class="highlight">github.com/burrows99/melanoma-classification</span></p>
+                        <ul>
+                            <li>Training pipeline (main.py)</li>
+                            <li>Inference app (Gradio)</li>
+                            <li>Evaluation metrics</li>
+                            <li>EigenCAM visualization</li>
+                            <li>OOD detection</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Gradio Demo Features</h3>
+                        <ul>
+                            <li>Upload dermoscopic image</li>
+                            <li>Enter patient metadata</li>
+                            <li>Get malignant probability</li>
+                            <li><span class="highlight">EigenCAM overlay</span> for interpretability</li>
+                            <li><span class="highlight">OOD warning</span> for non-dermoscopic inputs</li>
+                            <li>6-transform TTA inference</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Model Weights</h3>
+                <p>All 5 experiment checkpoints available at: <span class="highlight">huggingface.co/burrows99/melanoma-models</span></p>
+            </div>
+        </div>
+
+        <!-- SLIDE 22: Future Work -->
+        <div class="slide" data-slide="22">
+            <h2>Future Work</h2>
+            <div class="content">
+                <div class="grid-2">
+                    <div class="box">
+                        <h3>Model Improvements</h3>
+                        <ul>
+                            <li><span class="highlight">Larger EfficientNet</span> (B3/B5) — more capacity</li>
+                            <li><span class="highlight">Multi-backbone comparison</span> — DenseNet-121, ResNet-50</li>
+                            <li><span class="highlight">Vision Transformers</span> — with larger pretraining budget</li>
+                            <li><span class="highlight">Ensemble methods</span> — combine multiple models</li>
+                        </ul>
+                    </div>
+                    <div class="box">
+                        <h3>Evaluation & Fairness</h3>
+                        <ul>
+                            <li><span class="highlight">Fitzpatrick stratification</span> — skin tone bias assessment</li>
+                            <li><span class="highlight">External validation</span> — ISIC private test set</li>
+                            <li><span class="highlight">Multi-class diagnosis</span> — beyond binary classification</li>
+                            <li><span class="highlight">Clinical deployment study</span> — real-world performance</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Limitations Addressed</h3>
+                <ul>
+                    <li><span class="success">✓</span> Class imbalance handled with focal loss</li>
+                    <li><span class="success">✓</span> Metadata fusion with SHAP validation</li>
+                    <li><span class="success">✓</span> Interpretability via EigenCAM</li>
+                    <li><span class="success">✓</span> OOD detection for safety</li>
+                    <li><span class="warning">○</span> Amelanotic/small lesions remain challenging (higher FN rate)</li>
+                    <li><span class="warning">○</span> Skin tone bias not yet evaluated</li>
+                </ul>
+
+                <div class="metric-explanation">
+                    <strong>Key Remaining Challenge:</strong><br>
+                    <strong>FN (False Negatives)</strong> — Amelanotic and small lesions lack typical melanoma features. Future work should focus on targeted data augmentation and specialized architectures for these challenging cases.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 23: Conclusion -->
+        <div class="slide" data-slide="23">
+            <h2>Conclusion</h2>
+            <div class="content">
+                <h3>Key Results</h3>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">0.9134</div>
+                        <div class="metric-label">Best F1<br><small>balance of precision/recall</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">93.14%</div>
+                        <div class="metric-label">Recall<br><small>% cancers caught</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">-12.5%</div>
+                        <div class="metric-label">FN Reduction<br><small>fewer missed cancers</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">+1.9pp</div>
+                        <div class="metric-label">Metadata Gain<br><small>recall boost</small></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">0.99</div>
+                        <div class="metric-label">AUC<br><small>ranking ability</small></div>
+                    </div>
+                </div>
+
+                <h3>Contributions</h3>
+                <ol>
+                    <li><span class="highlight">Dual-branch fusion</span> — EfficientNet-B0 + metadata MLP (only 0.23% overhead)</li>
+                    <li><span class="highlight">5-experiment HP search</span> — isolating scheduler, optimizer, γ, and metadata contribution</li>
+                    <li><span class="highlight">Measured ablation</span> — +1.9 pp recall from metadata = 19 fewer missed cancers, validated by SHAP</li>
+                    <li><span class="highlight">Interpretability</span> — EigenCAM aligns with ABCDE criteria</li>
+                    <li><span class="highlight">Safety</span> — Mahalanobis OOD detector for non-dermoscopic inputs</li>
+                </ol>
+
+                <h3>Best Configuration</h3>
+                <p><span class="highlight">Experiment 1:</span> Adam + Cosine Annealing + γ=2.0 + Metadata</p>
+                <p>F1=0.8984 | Recall=93.14% | FN=70 (missed cancers) | FP=145 (false alarms)</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 24: Thank You -->
+        <div class="slide title-slide" data-slide="24">
+            <h1>Thank You</h1>
+            <p class="subtitle">Questions?</p>
+            <div class="content" style="margin-top: 40px; text-align: center;">
+                <p><span class="highlight">Repository:</span> github.com/burrows99/melanoma-classification</p>
+                <p><span class="highlight">Models:</span> huggingface.co/burrows99/melanoma-models</p>
+                <p><span class="highlight">Demo:</span> huggingface.co/spaces/burrows99/melanoma-classificiation</p>
+            </div>
+
+            <div class="metric-explanation" style="margin-top: 30px; text-align: left;">
+                <strong>Key Takeaways:</strong><br>
+                • <strong>F1</strong> = balances catching melanomas vs avoiding false alarms<br>
+                • <strong>Recall</strong> = % of melanomas caught — primary clinical metric<br>
+                • <strong>FN</strong> = missed melanomas — patients sent home with cancer<br>
+                • <strong>FP</strong> = false alarms — unnecessary biopsies<br>
+                • Best model (Exp 1): 70 missed cancers, 145 false alarms, 93% recall
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide counter only -->
+    <div class="slide-counter">
+        <span class="current" id="currentSlide">1</span> / <span id="totalSlides">24</span>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 24;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+
+            if (n > totalSlides) currentSlide = totalSlides;
+            if (n < 1) currentSlide = 1;
+
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[currentSlide - 1].classList.add('active');
+
+            document.getElementById('currentSlide').textContent = currentSlide;
+
+            // Update progress bar
+            const progress = (currentSlide / totalSlides) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+
+            // Scroll to top of slide
+            window.scrollTo(0, 0);
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                showSlide(currentSlide);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                showSlide(currentSlide);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                prevSlide();
+            } else if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            } else if (e.key === 'Escape' && document.fullscreenElement) {
+                document.exitFullscreen();
+                document.getElementById('slideContainer').classList.remove('fullscreen-mode');
+            }
+        });
+
+        // Fullscreen toggle
+        function toggleFullscreen() {
+            const slideContainer = document.getElementById('slideContainer');
+            const btn = document.getElementById('fullscreenBtn');
+
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    slideContainer.classList.add('fullscreen-mode');
+                    btn.textContent = 'Exit Fullscreen';
+                    btn.style.background = '#00d9ff';
+                    btn.style.color = '#1a1a2e';
+                }).catch(err => {
+                    alert('Fullscreen not available: ' + err.message);
+                });
+            } else {
+                document.exitFullscreen().then(() => {
+                    slideContainer.classList.remove('fullscreen-mode');
+                    btn.textContent = '⛶ Fullscreen';
+                    btn.style.background = '#16213e';
+                    btn.style.color = '#00d9ff';
+                });
+            }
+        }
+
+        // Handle fullscreen change events
+        document.addEventListener('fullscreenchange', () => {
+            const slideContainer = document.getElementById('slideContainer');
+            const btn = document.getElementById('fullscreenBtn');
+
+            if (!document.fullscreenElement) {
+                slideContainer.classList.remove('fullscreen-mode');
+                btn.textContent = '⛶ Fullscreen';
+                btn.style.background = '#16213e';
+                btn.style.color = '#00d9ff';
+            }
+        });
+
+        // Initialize
+        showSlide(1);
+    </script>
+</body>
+</html>

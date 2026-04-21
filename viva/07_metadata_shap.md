@@ -63,20 +63,7 @@ Anterior torso (chest/abdomen front) is a specific sub-site with fewer samples. 
 
 ---
 
-## Grilling Question 4: "Why late fusion and not early fusion?"
-
-**Early fusion** would concatenate the 14-d metadata vector directly to the image tensor (e.g., as extra channels). This is conceptually wrong — age doesn't correspond to any spatial location in a 256×256 image. The CNN would have to learn to ignore spatial structure for these channels.
-
-**Late fusion** (your approach): The CNN extracts its 1280-d visual representation independently. The MLP processes metadata independently. They meet only at the decision stage — each branch contributes what it's best at, without interference.
-
-**The mathematical argument:** The optimal decision boundary is:
-$$P(\text{malignant} | \mathbf{x}_\text{img}, \mathbf{x}_\text{meta}) \propto P(\mathbf{x}_\text{img} | \text{malignant}) \cdot P(\mathbf{x}_\text{meta} | \text{malignant})$$
-
-Under conditional independence (image features and metadata features are independent given class), late fusion is the Bayes-optimal architecture. In practice, they're not perfectly independent (older patients may have different lesion appearances), but late fusion is a good approximation.
-
----
-
-## Grilling Question 5: "The metadata added 39 FP. Is that acceptable?"
+## Grilling Question 4: "The metadata added 39 FP. Is that acceptable?"
 
 **It depends on clinical context:**
 
